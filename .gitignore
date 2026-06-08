@@ -1,0 +1,21 @@
+# Backend Quarkus / Maven
+backend/target/
+
+# Frontend Angular
+frontend-web/node_modules/
+frontend-web/dist/
+frontend-web/.angular/
+
+# Flutter
+mobile/build/
+mobile/.dart_tool/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+
+# Divers
+.idea/
+*.iml
+.DS_Store
+
+# Config locale Claude Code (propre à chaque poste)
+.claude/

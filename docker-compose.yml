@@ -1,0 +1,60 @@
+# ===========================================================================
+#  Orchestration des 3 conteneurs serveur :
+#    - db      : PostgreSQL (base de données)
+#    - backend : API Quarkus
+#    - web     : Angular servi par Nginx (+ reverse proxy /api vers backend)
+#
+#  L'app mobile Flutter n'est PAS ici : elle s'installe sur le téléphone
+#  et appelle directement l'API exposée sur le port 8080.
+#
+#  Lancer le tout :   docker compose up --build
+#  Arrêter :          docker compose down
+#  Tout réinitialiser (efface la base) : docker compose down -v
+# ===========================================================================
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: mp-db
+    environment:
+      POSTGRES_DB: produitsdb
+      POSTGRES_USER: produits
+      POSTGRES_PASSWORD: produits
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U produits -d produitsdb"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./backend
+    container_name: mp-backend
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/produitsdb
+      DB_USER: produits
+      DB_PASSWORD: produits
+      # Origines autorisées pour le CORS :
+      #   - :8090 = l'app web servie par Nginx (production)
+      #   - :4200 = le serveur de dev Angular (ng serve)
+      CORS_ORIGINS: http://localhost:8090,http://localhost:4200
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      # Exposé sur l'hôte pour que l'app mobile Flutter puisse l'appeler
+      # directement (http://10.0.2.2:8080 depuis l'émulateur Android).
+      - "8080:8080"
+
+  web:
+    build: ./frontend-web
+    container_name: mp-web
+    depends_on:
+      - backend
+    ports:
+      # L'application web sera accessible sur http://localhost:8090
+      - "8090:80"
+
+volumes:
+  db-data:
