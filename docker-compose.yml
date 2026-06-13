@@ -38,7 +38,8 @@ services:
       # Origines autorisées pour le CORS :
       #   - :8090 = l'app web servie par Nginx (production)
       #   - :4200 = le serveur de dev Angular (ng serve)
-      CORS_ORIGINS: http://localhost:8090,http://localhost:4200
+      #   - :5000 = l'app Flutter Web (flutter run -d chrome --web-port=5000)
+      CORS_ORIGINS: http://localhost:8090,http://localhost:4200,http://localhost:5000
     depends_on:
       db:
         condition: service_healthy
