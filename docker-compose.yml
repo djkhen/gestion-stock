@@ -15,7 +15,7 @@
 services:
   db:
     image: postgres:16-alpine
-    container_name: mp-db
+    container_name: gs-db
     environment:
       POSTGRES_DB: produitsdb
       POSTGRES_USER: produits
@@ -30,7 +30,7 @@ services:
 
   backend:
     build: ./backend
-    container_name: mp-backend
+    container_name: gs-backend
     environment:
       DB_URL: jdbc:postgresql://db:5432/produitsdb
       DB_USER: produits
@@ -50,7 +50,7 @@ services:
 
   web:
     build: ./frontend-web
-    container_name: mp-web
+    container_name: gs-web
     depends_on:
       - backend
     ports:
