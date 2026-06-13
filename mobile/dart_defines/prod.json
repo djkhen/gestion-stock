@@ -1,0 +1,4 @@
+{
+  "ENV": "prod",
+  "API_URL": "https://api.mon-domaine.com"
+}

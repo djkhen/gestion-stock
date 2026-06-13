@@ -4,21 +4,19 @@ import 'articles_page.dart';
 
 void main() => runApp(const MonApp());
 
-/// Adresse de l'API Quarkus — configurable selon l'ENVIRONNEMENT.
+/// Configuration par ENVIRONNEMENT, lue à la COMPILATION.
 ///
-/// L'URL est lue à la COMPILATION via `--dart-define=API_URL=...`.
-/// Si rien n'est fourni, on prend la valeur de DEV par défaut (ci-dessous).
+/// Les valeurs viennent d'un fichier JSON (un par environnement) :
+///   DEV  : flutter run        --dart-define-from-file=dart_defines/dev.json
+///   PROD : flutter build apk  --dart-define-from-file=dart_defines/prod.json
 ///
-///   DEV (émulateur Android) : flutter run
-///       -> utilise la valeur par défaut http://10.0.2.2:8080
-///       (10.0.2.2 = "localhost" du PC hôte, vu depuis l'émulateur)
-///
-///   PROD : flutter build apk --dart-define=API_URL=https://api.mon-domaine.com
-///       -> remplace l'URL par celle du vrai serveur déployé
-///
-/// Autres cibles de DEV (à passer en --dart-define si besoin) :
-///   - Simulateur iOS : http://localhost:8080
-///   - Téléphone réel : http://<IP_LOCALE_DU_PC>:8080
+/// Si rien n'est passé, les valeurs par défaut ci-dessous (DEV) s'appliquent.
+/// (10.0.2.2 = "localhost" du PC hôte, vu depuis l'émulateur Android.)
+
+/// Nom de l'environnement courant ("dev" ou "prod").
+const String appEnv = String.fromEnvironment('ENV', defaultValue: 'dev');
+
+/// URL de base de l'API Quarkus.
 const String apiBaseUrl = String.fromEnvironment(
   'API_URL',
   defaultValue: 'http://10.0.2.2:8080',
@@ -30,7 +28,9 @@ class MonApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Gestion de stock',
+      // En prod, titre propre ; en dev, on affiche l'environnement pour
+      // repérer d'un coup d'œil qu'on n'est PAS en production.
+      title: appEnv == 'prod' ? 'Gestion de stock' : 'Gestion de stock [${appEnv.toUpperCase()}]',
       theme: ThemeData(
         colorSchemeSeed: const Color(0xFF4F46E5),
         useMaterial3: true,
