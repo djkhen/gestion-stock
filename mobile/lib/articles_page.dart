@@ -211,13 +211,14 @@ class _PageArticlesState extends State<PageArticles> {
         TextEditingController(text: (existant?.quantiteStock ?? 0).toString());
     final seuilCtrl =
         TextEditingController(text: (existant?.seuilAlerte ?? 0).toString());
-    final prixCtrl = TextEditingController(
-        text: (existant?.prixUnitaire ?? 0).toString());
+    final prixCtrl =
+        TextEditingController(text: (existant?.prixUnitaire ?? 0).toString());
 
     final article = await showDialog<Article>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(existant == null ? 'Nouvel article' : 'Modifier l\'article'),
+        title:
+            Text(existant == null ? 'Nouvel article' : 'Modifier l\'article'),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -244,7 +245,8 @@ class _PageArticlesState extends State<PageArticles> {
               ),
               TextField(
                 controller: qteCtrl,
-                decoration: const InputDecoration(labelText: 'Quantité en stock'),
+                decoration:
+                    const InputDecoration(labelText: 'Quantité en stock'),
                 keyboardType: TextInputType.number,
               ),
               TextField(
@@ -276,7 +278,8 @@ class _PageArticlesState extends State<PageArticles> {
               Navigator.pop(
                 context,
                 Article(
-                  id: existant?.id, // conserve l'id en édition -> déclenche un PUT
+                  id: existant?.id,
+                  // conserve l'id en édition -> déclenche un PUT
                   reference: reference,
                   designation: designation,
                   description: descCtrl.text.trim(),
@@ -368,17 +371,14 @@ class _PageArticlesState extends State<PageArticles> {
       return const Center(child: CircularProgressIndicator());
     }
     if (_erreur != null) {
-      return ListView(
-        // ListView (et non Center) pour que le "tirer pour rafraîchir" marche
-        // même en cas d'erreur.
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(_erreur!,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.red)),
-          ),
-        ],
+      return Center(
+        // ← le message d'erreur revient ICI
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(_erreur!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.red)),
+        ),
       );
     }
     if (_articles.isEmpty) {
@@ -391,31 +391,105 @@ class _PageArticlesState extends State<PageArticles> {
         ],
       );
     }
+
+    // Liste ADAPTATIVE : la mise en page change selon la largeur disponible.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Breakpoint : < 600px = mobile (listeView.Builder) ; si >= 600px = grand écran (GridView.builder)
+        if (constraints.maxWidth < 600) {
+          return _vueListe();
+        }
+        return _vueGrille(constraints.maxWidth);
+      },
+    );
+  }
+
+  //----------------------------------------------------------------------------
+  // Widget presented on the PAD
+  // MÉTHODE = une fonction DANS la classe
+  //----------------------------------------------------------------------------
+  Widget _vueListe() {
+    debugPrint(" DK -- _vueGrille Gestion de stock");
+    // ListView (et non Center) pour que le "tirer pour rafraîchir" marche
+    // même en cas d'erreur.
+    // Un Center tout seul ne défile pas → le geste ne marche pas.
+    // Donc on met un ListView — et oui tu peux centrer, mais DANS le ListView, pas un Center seul.
+
     return ListView.separated(
       itemCount: _articles.length,
       separatorBuilder: (_, __) => const Divider(height: 1),
       itemBuilder: (context, i) {
-        final a = _articles[i];
+        final p = _articles[i];
         return ListTile(
-          leading: Icon(
-            a.enAlerte ? Icons.warning_amber_rounded : Icons.inventory_2_outlined,
-            color: a.enAlerte ? Colors.orange : null,
-          ),
-          title: Text('${a.reference} — ${a.designation}'),
-          subtitle: Text(
-            'Stock : ${a.quantiteStock} ${a.unite}'
-            '${a.enAlerte ? '  ⚠️ sous le seuil (${a.seuilAlerte})' : ''}'
-            '\n${a.prixUnitaire.toStringAsFixed(2)} € / ${a.unite}',
-          ),
-          isThreeLine: true,
-          onTap: () => _ouvrirFormulaire(existant: a),
-          trailing: IconButton(
-            icon: const Icon(Icons.delete_outline),
-            tooltip: 'Supprimer',
-            onPressed: () => _supprimer(a),
-          ),
+          leading: const Icon(Icons.inventory_2_outlined),
+          title: Text('${p.reference} — ${p.designation}'),
+          subtitle: Text(p.description),
+          trailing: Text('${p.prixUnitaire.toStringAsFixed(2)} €',
+              style: const TextStyle(fontWeight: FontWeight.bold)),
         );
       },
     );
+  }
+
+  // MÉTHODE = une fonction DANS la classe
+  Widget _vueGrille(double largeur) {
+    debugPrint(" DK -- _vueGrille Gestion de stock");
+    // Une colonne par tranche d'environ 300px (minimum 2, maximum 5).
+    final nbColonnes = (largeur / 300).floor().clamp(2, 5);
+    return GridView.builder(
+        padding: const EdgeInsets.all(12),
+        /*gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+        ),*/
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: nbColonnes,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          childAspectRatio: 2.2,
+        ),
+        /*
+        final int? id;
+        final String reference;
+        final String designation;
+        final String description;
+        final String unite;
+        final int quantiteStock;
+        final int seuilAlerte;
+        final double prixUnitaire;
+        */
+        itemCount: _articles.length,
+        itemBuilder: (context, i) {
+          final art = _articles[i];
+          return Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.inventory_2_outlined),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(art.reference,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(art.description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.grey)),
+                  const SizedBox(height: 6),
+                  Text(art.unite.toString(),
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+          );
+        });
   }
 }
