@@ -17,13 +17,13 @@ services:
     image: postgres:16-alpine
     container_name: gs-db
     environment:
-      POSTGRES_DB: produitsdb
-      POSTGRES_USER: produits
-      POSTGRES_PASSWORD: produits
+      POSTGRES_DB: gestionstockdb
+      POSTGRES_USER: gs
+      POSTGRES_PASSWORD: gs
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U produits -d produitsdb"]
+      test: ["CMD-SHELL", "pg_isready -U gs -d gestionstockdb"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -32,9 +32,9 @@ services:
     build: ./backend
     container_name: gs-backend
     environment:
-      DB_URL: jdbc:postgresql://db:5432/produitsdb
-      DB_USER: produits
-      DB_PASSWORD: produits
+      DB_URL: jdbc:postgresql://db:5432/gestionstockdb
+      DB_USER: gs
+      DB_PASSWORD: gs
       # Origines autorisées pour le CORS :
       #   - :8090 = l'app web servie par Nginx (production)
       #   - :4200 = le serveur de dev Angular (ng serve)
