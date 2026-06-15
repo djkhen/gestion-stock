@@ -1,8 +1,7 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 
-import 'main.dart' show apiBaseUrl;
+import 'models/article.dart';
+import 'services/article_service.dart';
 
 /// ===========================================================================
 ///  Catalogue ARTICLES — cœur du MVP "gestion de stocks".
@@ -17,53 +16,8 @@ import 'main.dart' show apiBaseUrl;
 ///  dupliquer l'adresse du backend.
 /// ===========================================================================
 
-/// Modèle Article — miroir de l'entité Quarkus du même nom.
-class Article {
-  final int? id;
-  final String reference;
-  final String designation;
-  final String description;
-  final String unite;
-  final int quantiteStock;
-  final int seuilAlerte;
-  final double prixUnitaire;
-
-  Article({
-    this.id,
-    required this.reference,
-    required this.designation,
-    required this.description,
-    required this.unite,
-    required this.quantiteStock,
-    required this.seuilAlerte,
-    required this.prixUnitaire,
-  });
-
-  /// Vrai si le stock est au niveau d'alerte ou en dessous (rupture imminente).
-  bool get enAlerte => quantiteStock <= seuilAlerte;
-
-  factory Article.fromJson(Map<String, dynamic> json) => Article(
-        id: json['id'],
-        reference: json['reference'] ?? '',
-        designation: json['designation'] ?? '',
-        description: json['description'] ?? '',
-        unite: json['unite'] ?? 'piece',
-        quantiteStock: (json['quantiteStock'] ?? 0) as int,
-        seuilAlerte: (json['seuilAlerte'] ?? 0) as int,
-        prixUnitaire: (json['prixUnitaire'] ?? 0).toDouble(),
-      );
-
-  /// On n'envoie pas l'id : le backend le génère à la création.
-  Map<String, dynamic> toJson() => {
-        'reference': reference,
-        'designation': designation,
-        'description': description,
-        'unite': unite,
-        'quantiteStock': quantiteStock,
-        'seuilAlerte': seuilAlerte,
-        'prixUnitaire': prixUnitaire,
-      };
-}
+// Le modèle Article est désormais dans models/article.dart
+// Les appels au backend sont dans services/article_service.dart
 
 ///---------------------------------------------------------------------------
 ///              StatefulWidget
@@ -79,6 +33,9 @@ class PageArticles extends StatefulWidget {
 ///             State<PageArticles>
 ///---------------------------------------------------------------------------
 class _PageArticlesState extends State<PageArticles> {
+  // Le service qui parle au backend (l'UI ne fait plus d'HTTP elle-même).
+  final ArticleService _service = ArticleService();
+
   List<Article> _articles = [];
   bool _chargement = true;
   String? _erreur;
@@ -99,28 +56,18 @@ class _PageArticlesState extends State<PageArticles> {
       _erreur = null;
     });
     try {
-      // Construit l'URL avec le paramètre de recherche éventuel.
-      final uri = Uri.parse('$apiBaseUrl/articles').replace(
-        queryParameters:
-            _recherche.trim().isEmpty ? null : {'q': _recherche.trim()},
-      );
-      final reponse = await http.get(uri);
-      if (reponse.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(utf8.decode(reponse.bodyBytes));
-        setState(() {
-          _articles = data.map((e) => Article.fromJson(e)).toList();
-          _chargement = false;
-        });
-      } else {
-        setState(() {
-          _erreur = 'Erreur serveur : ${reponse.statusCode}';
-          _chargement = false;
-        });
-      }
-    } catch (e) {
+      // Tout l'HTTP est dans le service → ici on ne fait que demander la liste.
+      final articles = await _service.liste(recherche: _recherche);
+      if (!mounted) return;
       setState(() {
-        _erreur = "Impossible de joindre l'API.\n"
-            "Vérifiez l'adresse ($apiBaseUrl) et que le backend tourne.";
+        _articles = articles;
+        _chargement = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _erreur = "Impossible de charger les articles.\n"
+            "Vérifiez que le backend tourne.";
         _chargement = false;
       });
     }
@@ -131,28 +78,19 @@ class _PageArticlesState extends State<PageArticles> {
   ///---------------------------------------------------------------------------
   Future<void> _enregistrer(Article article) async {
     final estModification = article.id != null;
-    final uri = estModification
-        ? Uri.parse('$apiBaseUrl/articles/${article.id}')
-        : Uri.parse('$apiBaseUrl/articles');
     try {
-      final reponse = estModification
-          ? await http.put(uri,
-              headers: {'Content-Type': 'application/json'},
-              body: jsonEncode(article.toJson()))
-          : await http.post(uri,
-              headers: {'Content-Type': 'application/json'},
-              body: jsonEncode(article.toJson()));
+      // Le service renvoie le code HTTP, l'UI choisit le message à afficher.
+      final code = await _service.enregistrer(article);
       if (!mounted) return;
-      // 200 (PUT) ou 201 (POST) = succès.
-      if (reponse.statusCode == 200 || reponse.statusCode == 201) {
+      if (code == 200 || code == 201) {
         _afficherMessage(estModification
             ? 'Article « ${article.designation} » modifié ✅'
             : 'Article « ${article.designation} » ajouté ✅');
         await _charger();
-      } else if (reponse.statusCode == 409) {
+      } else if (code == 409) {
         _afficherMessage('Référence déjà utilisée (${article.reference}).');
       } else {
-        _afficherMessage('Erreur ${reponse.statusCode} : ${reponse.body}');
+        _afficherMessage('Erreur $code lors de l\'enregistrement.');
       }
     } catch (e) {
       if (!mounted) return;
@@ -184,14 +122,13 @@ class _PageArticlesState extends State<PageArticles> {
     );
     if (confirme != true) return;
     try {
-      final reponse =
-          await http.delete(Uri.parse('$apiBaseUrl/articles/${article.id}'));
+      final code = await _service.supprimer(article.id!);
       if (!mounted) return;
-      if (reponse.statusCode == 204) {
+      if (code == 204) {
         _afficherMessage('Article supprimé 🗑️');
         await _charger();
       } else {
-        _afficherMessage('Erreur suppression : ${reponse.statusCode}');
+        _afficherMessage('Erreur suppression : $code');
       }
     } catch (e) {
       if (!mounted) return;
@@ -421,11 +358,39 @@ class _PageArticlesState extends State<PageArticles> {
       itemBuilder: (context, i) {
         final p = _articles[i];
         return ListTile(
-          leading: const Icon(Icons.inventory_2_outlined),
+          leading: Icon(
+            p.enAlerte
+                ? Icons.warning_amber_rounded
+                : Icons.inventory_2_outlined,
+            color: p.enAlerte ? Colors.orange : null,
+          ),
           title: Text('${p.reference} — ${p.designation}'),
-          subtitle: Text(p.description),
-          trailing: Text('${p.prixUnitaire.toStringAsFixed(2)} €',
-              style: const TextStyle(fontWeight: FontWeight.bold)),
+          subtitle:
+              Text('${p.description}\n${p.prixUnitaire.toStringAsFixed(2)} €'),
+          isThreeLine: true,
+          onTap: () => _ouvrirFormulaire(existant: p), // taper = éditer aussi
+          // Modifier AU-DESSUS de Supprimer (boutons explicites, en colonne).
+          trailing: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.edit_outlined),
+                tooltip: 'Modifier',
+                iconSize: 20,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                onPressed: () => _ouvrirFormulaire(existant: p),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline),
+                tooltip: 'Supprimer',
+                iconSize: 20,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                onPressed: () => _supprimer(p),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -445,7 +410,7 @@ class _PageArticlesState extends State<PageArticles> {
           crossAxisCount: nbColonnes,
           mainAxisSpacing: 12,
           crossAxisSpacing: 12,
-          childAspectRatio: 2.2,
+          childAspectRatio: 1.6,
         ),
         /*
         final int? id;
@@ -461,32 +426,62 @@ class _PageArticlesState extends State<PageArticles> {
         itemBuilder: (context, i) {
           final art = _articles[i];
           return Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.inventory_2_outlined),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(art.reference,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                            overflow: TextOverflow.ellipsis),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(art.description,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.grey)),
-                  const SizedBox(height: 6),
-                  Text(art.unite.toString(),
-                      style: const TextStyle(fontWeight: FontWeight.bold)),
-                ],
+            color: art.enAlerte ? Colors.orange.shade50 : null,
+            child: InkWell(
+              //------------------------------------------------
+              // pour éditer l'article le ckick est sur InkWell
+              //------------------------------------------------
+              onTap: () => _ouvrirFormulaire(existant: art), // taper = éditer
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          art.enAlerte
+                              ? Icons.warning_amber_rounded
+                              : Icons.inventory_2_outlined,
+                          color: art.enAlerte ? Colors.orange : null,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(art.reference,
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.bold),
+                              overflow: TextOverflow.ellipsis),
+                        ),
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit_outlined),
+                              tooltip: 'Modifier',
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () => _ouvrirFormulaire(existant: art),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline),
+                              tooltip: 'Supprimer',
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () => _supprimer(art),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(art.description,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.grey)),
+                    const SizedBox(height: 6),
+                    Text(art.unite.toString(),
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                  ],
+                ),
               ),
             ),
           );
