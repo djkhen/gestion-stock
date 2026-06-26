@@ -28,9 +28,12 @@ class MonApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      debugShowCheckedModeBanner: false, // ← retire le bandeau DEBUG
       // En prod, titre propre ; en dev, on affiche l'environnement pour
       // repérer d'un coup d'œil qu'on n'est PAS en production.
-      title: appEnv == 'prod' ? 'Gestion de stock' : 'Gestion de stock [${appEnv.toUpperCase()}]',
+      title: appEnv == 'prod'
+          ? 'Gestion de stock'
+          : 'Gestion de stock [${appEnv.toUpperCase()}]',
       theme: ThemeData(
         colorSchemeSeed: const Color(0xFF4F46E5),
         useMaterial3: true,
