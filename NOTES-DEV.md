@@ -1,7 +1,41 @@
-# Notes de développement — mini-projet
+# Notes de développement — gestion-stock (gs)
 
 Mémo pratique du projet : architecture, commandes, pièges rencontrés et leurs
 solutions. À lire en premier quand on (re)prend le projet sur une machine.
+
+> 🧭 **Repère d'univers** : **gs = gestion-stock = ARTICLES 📦** (endpoint `/articles`).
+> À NE PAS confondre avec **mp = mini-projet = produits 🛍️** (`/produits`), le labo.
+> Le titre de l'app le confirme d'un coup d'œil : « 📦 Catalogue articles » = gs.
+
+---
+
+## ⚡ Aide-mémoire express (ce que j'oublie tout le temps)
+
+```bash
+# --- Lancer le mobile sur ÉMULATEUR Android ---
+flutter emulators --launch Small_Phone_API_35     # démarre l'émulateur
+flutter run -d emulator-5554                       # API = 10.0.2.2:8080 (défaut)
+
+# --- Lancer le mobile sur CHROME (web) ---
+flutter run -d chrome --web-port=5000 --dart-define=API_URL=http://localhost:8080
+#   web-port=5000 → autorisé par le CORS │ dart-define → localhost au lieu de 10.0.2.2
+
+# --- Backend gs (UN SEUL backend sur 8080 !) ---
+cd C:\Users\dk\StudioProjects\mini-projet   && docker compose down   # libère 8080
+cd C:\Users\dk\StudioProjects\gestion-stock && docker compose up -d  # démarre gs
+
+# --- Réflexes debug ---
+docker ps -a                       # qui tourne ? (gs-* ou mp-*) + qui est mort
+curl localhost:8080/articles       # 200=OK  404=mauvais backend/route  500=base/code
+```
+
+### 📍 Adresse de l'API selon la cible (constante `apiBaseUrl` dans `lib/main.dart`)
+| Cible | URL API | Pourquoi |
+|---|---|---|
+| Émulateur Android | `http://10.0.2.2:8080` | alias spécial Android = "localhost du PC" |
+| **Chrome / Web** | `http://localhost:8080` | `10.0.2.2` n'existe PAS pour un navigateur ! + CORS |
+| Simulateur iOS | `http://localhost:8080` | — |
+| Téléphone réel | `http://<IP_DU_PC>:8080` | ex. 192.168.x.x |
 
 ---
 
@@ -11,24 +45,32 @@ Une **seule API** (Quarkus) consommée par **deux clients** (web Angular + mobil
 Flutter), le tout conteneurisé avec **Docker**.
 
 ```
-  Angular (web)  ──/api/produits──►  Nginx ──►  ┐
+  Angular (web)  ──/api/articles──►  Nginx ──►  ┐
                                                  ├──►  Quarkus :8080 ──►  PostgreSQL
-  Flutter (mobile) ──:8080/produits──────────────┘
+  Flutter (mobile) ──:8080/articles──────────────┘
 ```
 
 | Dossier         | Rôle                          | Techno             | IDE conseillé |
 |-----------------|-------------------------------|--------------------|---------------|
-| `backend/`      | API REST `/produits` (CRUD)   | Quarkus + Panache  | IntelliJ IDEA |
-| `frontend-web/` | App web                       | Angular 19 + Nginx | VS Code       |
+| `backend/`      | API REST `/articles` (CRUD)   | Quarkus + Panache  | IntelliJ IDEA |
+| `frontend-web/` | App web                       | Angular + Nginx    | VS Code       |
 | `mobile/`       | App mobile                    | Flutter            | IntelliJ IDEA |
 | `docker-compose.yml` | Orchestration db+backend+web | Docker        | —             |
+
+### 📂 Architecture mobile (en couches)
+```
+mobile/lib/
+├── models/article.dart          → la donnée + fromJson/toJson (enAlerte)
+├── services/article_service.dart→ appels HTTP /articles (liste, enregistrer, supprimer)
+├── articles_page.dart           → l'écran (liste/grille responsive, CRUD)
+└── main.dart                    → apiBaseUrl + MaterialApp
+```
 
 ---
 
 ## 🚀 Lancer le projet
 
 ### Tout en Docker (mode "production")
-
 ```bash
 docker compose up --build         # build + démarre db, backend, web
 docker compose up -d              # en arrière-plan
@@ -39,117 +81,83 @@ docker compose down -v            # arrêter ET effacer la base (volume)
 | Service          | URL                                |
 |------------------|------------------------------------|
 | App web (Nginx)  | http://localhost:8090              |
-| API Quarkus      | http://localhost:8080/produits     |
+| API Quarkus      | http://localhost:8080/articles     |
 | Swagger UI       | http://localhost:8080/q/swagger-ui |
 
-### Développer Angular (mode "dev", recommandé au quotidien)
-
-Le serveur de dev `ng serve` (port **4200**) recompile à chaud à chaque
-sauvegarde — bien plus rapide que rebuilder l'image Docker.
-
+### Développer Angular (mode "dev")
 ```bash
-# 1) Lancer SEULEMENT le backend + la base (pas besoin du conteneur web)
-docker compose up -d db backend
-
-# 2) Lancer le serveur de dev Angular
-cd frontend-web
-npm install          # la 1re fois (ou après un clone) — installe node_modules
-npm start            # = ng serve, sert sur http://localhost:4200
+docker compose up -d db backend    # backend + base seulement
+cd frontend-web && npm install     # 1re fois
+npm start                          # ng serve → http://localhost:4200
 ```
 
 > ⚠️ **Premier réflexe après un clone** : `npm install` (Angular),
-> `flutter pub get` (mobile), `mvn install` (backend). Les dépendances ne sont
-> pas dans git, chaque machine doit les télécharger.
-
-### Lancer le mobile Flutter
-
-```bash
-cd mobile
-flutter pub get
-flutter run          # nécessite un émulateur/téléphone
-```
-
-Adresse de l'API selon la cible (constante `apiBaseUrl` dans `lib/main.dart`) :
-- Émulateur Android : `http://10.0.2.2:8080`
-- Simulateur iOS    : `http://localhost:8080`
-- Téléphone réel    : `http://<IP_LOCALE_DU_PC>:8080`
-
----
-
-## 🔀 Pourquoi `:8090` ET `:4200` marchent tous les deux
-
-Deux serveurs différents servent la même app sur deux ports :
-
-| | `:8090` (Docker) | `:4200` (ng serve) |
-|---|---|---|
-| Qui sert l'app | Nginx (build de prod) | ng serve (compil à la volée) |
-| Proxy `/api` → backend | `nginx.conf` (`proxy_pass`) | `proxy.conf.json` |
-| Rechargement à chaud | non | **oui** ⚡ |
-| Usage | prod / vérif finale | dev quotidien |
-
-Dans les deux cas, le code Angular appelle le chemin **relatif** `/api/produits` ;
-c'est l'environnement qui fournit le bon proxy. Le code ne change jamais.
+> `flutter pub get` (mobile), `mvn install` (backend).
 
 ---
 
 ## 🐛 Pièges rencontrés & solutions
 
-### 1. CORS : POST/PUT/DELETE en 403 depuis `:4200`
+### 1. ⭐ « Pas d'articles » → mauvais backend sur le port 8080
+**Symptôme** : l'app gs (articles) ne charge rien ; `curl localhost:8080/articles` = **404**.
+**Cause** : c'est le backend **mp** (produits) qui tournait sur 8080, pas gs.
+Un **seul** backend peut occuper 8080 à la fois.
+**Solution** :
+```bash
+cd ../mini-projet   && docker compose down     # arrêter mp
+cd ../gestion-stock && docker compose up -d    # démarrer gs
+docker ps                                       # vérifier : gs-* présents
+```
+> 🔑 **404 = problème de ROUTE/backend**, pas de base de données.
 
-**Symptôme** : sur `:4200`, le GET (liste) marche mais créer/modifier renvoie
-**403**. Avec `curl` tout marche. Sur `:8090` aucun souci.
+### 2. ⭐ Renommage de base ignoré (volume Docker persistant)
+**Symptôme** : après avoir renommé `POSTGRES_DB`/`POSTGRES_USER`, le backend
+n'arrive pas à se connecter (la base au nouveau nom n'existe pas).
+**Cause** : `POSTGRES_DB`/`USER` ne sont lus qu'à la **1re création** d'un volume
+vide. Si le volume existe déjà, Postgres le réutilise → l'ancien nom survit.
+**Solution** : purger le volume pour forcer la réinitialisation.
+```bash
+docker compose down -v        # -v = supprime le volume
+docker compose up -d --build  # base recréée avec gestionstockdb / gs
+```
 
-**Cause** : le CORS est une sécurité **du navigateur**. Le backend tient une
-liste blanche d'origines autorisées (`quarkus.http.cors.origins`). En Docker,
-seule `http://localhost:8090` était autorisée → l'origine `http://localhost:4200`
-du serveur de dev était rejetée.
-- Le GET *same-origin* n'envoie pas d'en-tête `Origin` → pas de vérif → OK.
-- Le POST envoie `Origin: http://localhost:4200` → vérif → refus → 403.
-- `curl` n'envoie pas d'`Origin` → pas soumis au CORS → c'est normal qu'il passe.
+### 3. ⭐ Web (Chrome) ne charge pas les articles (mais l'émulateur oui)
+**Cause** : config DIFFÉRENTE du mobile.
+- `10.0.2.2` n'existe **que** pour l'émulateur Android → invisible pour un navigateur.
+- Sur web, le **CORS** s'applique (le navigateur l'impose, pas l'émulateur).
+**Solution** :
+```bash
+flutter run -d chrome --web-port=5000 --dart-define=API_URL=http://localhost:8080
+```
+(le port 5000/5001 est dans la liste blanche CORS du backend.)
 
-**Solution** : ajouter `:4200` à la liste blanche dans `docker-compose.yml`,
-puis recréer le backend.
+### 4. CORS : POST/PUT/DELETE en 403 depuis `:4200` ou `:5000`
+**Cause** : origine non autorisée. Le GET *same-origin* passe (pas d'en-tête
+`Origin`), mais POST envoie `Origin` → refus si absent de la liste blanche.
+`curl` n'envoie jamais d'`Origin` → passe toujours (normal).
+**Solution** : ajouter l'origine dans `docker-compose.yml` puis recréer le backend.
 ```yaml
-CORS_ORIGINS: http://localhost:8090,http://localhost:4200
-```
-```bash
-docker compose up -d backend
+CORS_ORIGINS: http://localhost:8090,http://localhost:4200,http://localhost:5000,http://localhost:5001
 ```
 
-> 💡 Sur `:8090`, navigateur et API sont vus comme la **même origine** (grâce au
-> proxy Nginx) → pas de CORS. C'est une subtilité propre au mode dev `:4200`.
-
-### 2. Soulignements rouges dans VS Code (imports Angular introuvables)
-
-**Cause** : `node_modules` absent (le projet ne se compilait que dans Docker).
-**Solution** : `cd frontend-web && npm install`, puis au besoin dans VS Code :
-`Ctrl+Shift+P` → « TypeScript: Restart TS Server ».
-
-### 3. POST en `curl` qui échoue (400) sous Windows
-
-Le JSON en ligne avec guillemets se fait "manger" par le shell. Mettre le JSON
-dans un fichier :
-```bash
-curl -X POST http://localhost:8080/produits \
-  -H "Content-Type: application/json" -d @produit.json
-```
-
-### 4. Prix avec virgule → 400
-
-Quarkus attend un `double` : `"5,90"` (virgule) n'est pas parsable → 400.
-Utiliser un **point** (`5.90`), ou valider/convertir la saisie côté formulaire.
+### 5. Émulateur qui crashe au lancement (Vulkan)
+**Solution** : `C:\Users\dk\.android\advancedFeatures.ini` avec `Vulkan = off`,
+ou lancer avec `-gpu swiftshader_indirect`.
 
 ---
 
-## 📡 API REST `/produits` (codes HTTP)
+## 📡 API REST `/articles` (codes HTTP)
 
 | Opération | Méthode | Chemin            | Succès            | Erreur          |
 |-----------|---------|-------------------|-------------------|-----------------|
-| Lister    | GET     | `/produits`       | 200               | —               |
-| Détail    | GET     | `/produits/{id}`  | 200               | 404 si absent   |
-| Créer     | POST    | `/produits`       | 201 Created       | 422 si id fourni|
-| Modifier  | PUT     | `/produits/{id}`  | 200               | 404 si absent   |
-| Supprimer | DELETE  | `/produits/{id}`  | 204 No Content    | 404 si absent   |
+| Lister    | GET     | `/articles`       | 200               | —               |
+| Détail    | GET     | `/articles/{id}`  | 200               | 404 si absent   |
+| Créer     | POST    | `/articles`       | 201 Created       | 409 réf. en double |
+| Modifier  | PUT     | `/articles/{id}`  | 200               | 404 si absent   |
+| Supprimer | DELETE  | `/articles/{id}`  | 204 No Content    | 404 si absent   |
+
+Champs d'un article : `reference`, `designation`, `description`, `unite`,
+`quantiteStock`, `seuilAlerte`, `prixUnitaire` (+ `enAlerte` calculé : stock ≤ seuil).
 
 ---
 
@@ -159,27 +167,28 @@ Utiliser un **point** (`5.90`), ou valider/convertir la saisie côté formulaire
 docker compose ps                       # état des conteneurs
 docker compose logs -f backend          # logs backend en direct
 docker compose up -d --build web        # reconstruire SEULEMENT le web
-docker compose up -d backend            # recréer le backend (ex: après changement d'env)
-docker compose exec db psql -U produits -d produitsdb   # console SQL
+docker compose up -d backend            # recréer le backend (après changement d'env)
+docker compose exec db psql -U gs -d gestionstockdb   # console SQL
 ```
 
 ---
 
-## 🗺️ Feuille de route (apprentissage)
+## 🗂️ Repères du projet
 
-1. ✅ Infra Docker (compose, Dockerfiles, nginx.conf)
-2. ✅ Backend Quarkus (entité Panache, API REST, CRUD)
-3. ✅ Clients : Angular (web) + Flutter (mobile, lecture)
-4. ⏳ CRUD complet dans l'interface (web ✏️ / mobile)
-5. 🔒 **Keycloak** — sécurité (authentification/autorisation) — **étape finale** :
-   conteneur Keycloak + `@RolesAllowed` côté Quarkus + login Angular/Flutter.
+| Élément | Valeur |
+|---|---|
+| Entité | **articles** (`/articles`) |
+| Base de données | `gestionstockdb` (user `gs`) |
+| Conteneurs Docker | `gs-db`, `gs-backend`, `gs-web` |
+| Port backend / web | 8080 / 8090 |
+| Origines CORS autorisées | `:8090`, `:4200`, `:5000`, `:5001` |
 
 ---
 
-## ℹ️ Notes diverses
+## 🗺️ Feuille de route (MVP portfolio)
 
-- `node_modules/`, `target/`, `build/`, `dist/`, `.claude/` sont **ignorés par git**
-  (voir `.gitignore`). Normal qu'ils ne soient pas dans le dépôt.
-- La base insère 3 produits de démo au 1er démarrage si elle est vide
-  (`DataInitializer.java`). Les données **persistent** (volume Docker `db-data`,
-  Hibernate en mode `update`).
+1. ✅ Infra Docker + backend Quarkus (articles, CRUD, PUT façon PATCH)
+2. ✅ Mobile Flutter en couches (models/ services/) + CRUD + responsive
+3. ⏳ Tests (widget_test, tests unitaires des services/modèles)
+4. 🔒 **Auth / RBAC** (Keycloak + `@RolesAllowed` + login) — étape entreprise
+5. 🚀 Déploiement (VPS + Docker + CI/CD GitHub Actions)
