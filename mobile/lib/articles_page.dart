@@ -428,8 +428,12 @@ class _PageArticlesState extends State<PageArticles> {
           crossAxisCount: nbColonnes,
           mainAxisSpacing: 12,
           crossAxisSpacing: 12,
-          // Hauteur FIXE en pixels (au lieu de childAspectRatio) : la cellule
-          // ne rétrécit PLUS en hauteur quand la fenêtre se rétrécit -> plus d'overflow.
+          // CHOIX : mainAxisExtent (hauteur fixe en px) PLUTOT que childAspectRatio.
+          //   - mainAxisExtent  -> hauteur stable, ideal quand le contenu a une
+          //     hauteur ~constante (texte + boutons). Pas de deformation au resize.
+          //   - childAspectRatio -> hauteur = largeur / ratio (varie avec la largeur),
+          //     plutot pour des images/tuiles qui doivent garder une forme.
+          //   NB : les deux sont EXCLUSIFS (si on met les deux, mainAxisExtent gagne).
           mainAxisExtent: 150,
         ),
         /*
