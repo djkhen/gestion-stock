@@ -269,23 +269,27 @@ class _PageArticlesState extends State<PageArticles> {
             padding: const EdgeInsets.all(12),
             child: Row(
               children: [
-                TextField(
-                  decoration: InputDecoration(
-                    prefixIcon: const Icon(Icons.search),
-                    hintText: 'Rechercher (référence, désignation)...',
-                    border: const OutlineInputBorder(),
-                    suffixIcon: _recherche.isEmpty
-                        ? null
-                        : IconButton(
-                            icon: const Icon(Icons.clear),
-                            onPressed: () {
-                              setState(() => _recherche = '');
-                              _charger();
-                            },
-                          ),
+                // Expanded : borne la largeur du TextField dans la Row
+                // (un TextField ne peut pas avoir une largeur infinie).
+                Expanded(
+                  child: TextField(
+                    decoration: InputDecoration(
+                      prefixIcon: const Icon(Icons.search),
+                      hintText: 'Rechercher (référence, désignation)...',
+                      border: const OutlineInputBorder(),
+                      suffixIcon: _recherche.isEmpty
+                          ? null
+                          : IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                setState(() => _recherche = '');
+                                _charger();
+                              },
+                            ),
+                    ),
+                    onChanged: (v) => _recherche = v,
+                    onSubmitted: (_) => _charger(),
                   ),
-                  onChanged: (v) => _recherche = v,
-                  onSubmitted: (_) => _charger(),
                 ),
               ],
             ),
