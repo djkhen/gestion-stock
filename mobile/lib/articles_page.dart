@@ -41,6 +41,9 @@ class _PageArticlesState extends State<PageArticles> {
   String? _erreur;
   String _recherche = '';
 
+  // Mode d'affichage choisi par l'utilisateur : false = liste, true = grille.
+  bool _afficherEnGrille = false;
+
   @override
   void initState() {
     super.initState();
@@ -256,6 +259,12 @@ class _PageArticlesState extends State<PageArticles> {
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
           IconButton(
+            onPressed: () =>
+                setState(() => _afficherEnGrille = !_afficherEnGrille),
+            tooltip: _afficherEnGrille ? 'Vue liste' : 'Vue grille',
+            icon: Icon(_afficherEnGrille ? Icons.view_list : Icons.grid_view),
+          ),
+          IconButton(
             onPressed: _charger,
             tooltip: 'Rafraîchir',
             icon: const Icon(Icons.refresh),
@@ -341,10 +350,9 @@ class _PageArticlesState extends State<PageArticles> {
     return LayoutBuilder(
       builder: (context, constraints) {
         // Breakpoint : < 600px = mobile (listeView.Builder) ; si >= 600px = grand écran (GridView.builder)
-        if (constraints.maxWidth < 600) {
-          return _vueListe();
-        }
-        return _vueGrille(constraints.maxWidth);
+        return _afficherEnGrille
+            ? _vueGrille(constraints.maxWidth)
+            : _vueListe();
       },
     );
   }
@@ -420,7 +428,9 @@ class _PageArticlesState extends State<PageArticles> {
           crossAxisCount: nbColonnes,
           mainAxisSpacing: 12,
           crossAxisSpacing: 12,
-          childAspectRatio: 1.6,
+          // Hauteur FIXE en pixels (au lieu de childAspectRatio) : la cellule
+          // ne rétrécit PLUS en hauteur quand la fenêtre se rétrécit -> plus d'overflow.
+          mainAxisExtent: 150,
         ),
         /*
         final int? id;
@@ -461,37 +471,41 @@ class _PageArticlesState extends State<PageArticles> {
                           child: Text(art.reference,
                               style:
                                   const TextStyle(fontWeight: FontWeight.bold),
+                              maxLines: 1,
                               overflow: TextOverflow.ellipsis),
-                        ),
-                        // Modifier puis Supprimer, côte à côte (Row : tient dans le trailing court du ListTile).
-
-                        Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.edit_outlined),
-                              tooltip: 'Modifier',
-                              visualDensity: VisualDensity.compact,
-                              onPressed: () => _ouvrirFormulaire(existant: art),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.delete_outline),
-                              tooltip: 'Supprimer',
-                              visualDensity: VisualDensity.compact,
-                              onPressed: () => _supprimer(art),
-                            ),
-                          ],
                         ),
                       ],
                     ),
                     const SizedBox(height: 6),
-                    Text(art.description,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Colors.grey)),
+                    // Expanded : la description absorbe l'espace restant et
+                    // s'ellipse -> la carte ne deborde JAMAIS (mobile, web, resize).
+                    Expanded(
+                      child: Text(art.description,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: Colors.grey)),
+                    ),
                     const SizedBox(height: 6),
-                    Text(art.unite.toString(),
-                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                    // Bas de carte : unité à gauche, actions à droite.
+                    // Spacer pousse les boutons tout à droite.
+                    Row(
+                      children: [
+                        Text(art.unite.toString(),
+                            style: const TextStyle(fontWeight: FontWeight.bold)),
+                        const Spacer(),
+                        IconButton(
+                          icon: const Icon(Icons.edit_outlined),
+                          tooltip: 'Modifier',
+                          visualDensity: VisualDensity.compact,
+                          onPressed: () => _ouvrirFormulaire(existant: art),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline),
+                          tooltip: 'Supprimer',
+                          visualDensity: VisualDensity.compact,
+                          onPressed: () => _supprimer(art),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
