@@ -267,23 +267,27 @@ class _PageArticlesState extends State<PageArticles> {
           // --- Barre de recherche (référence ou désignation) ---
           Padding(
             padding: const EdgeInsets.all(12),
-            child: TextField(
-              decoration: InputDecoration(
-                prefixIcon: const Icon(Icons.search),
-                hintText: 'Rechercher (référence, désignation)...',
-                border: const OutlineInputBorder(),
-                suffixIcon: _recherche.isEmpty
-                    ? null
-                    : IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          setState(() => _recherche = '');
-                          _charger();
-                        },
-                      ),
-              ),
-              onChanged: (v) => _recherche = v,
-              onSubmitted: (_) => _charger(),
+            child: Row(
+              children: [
+                TextField(
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.search),
+                    hintText: 'Rechercher (référence, désignation)...',
+                    border: const OutlineInputBorder(),
+                    suffixIcon: _recherche.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              setState(() => _recherche = '');
+                              _charger();
+                            },
+                          ),
+                  ),
+                  onChanged: (v) => _recherche = v,
+                  onSubmitted: (_) => _charger(),
+                ),
+              ],
             ),
           ),
           Expanded(
@@ -368,9 +372,11 @@ class _PageArticlesState extends State<PageArticles> {
           subtitle:
               Text('${p.description}\n${p.prixUnitaire.toStringAsFixed(2)} €'),
           isThreeLine: true,
-          onTap: () => _ouvrirFormulaire(existant: p), // taper = éditer aussi
-          // Modifier AU-DESSUS de Supprimer (boutons explicites, en colonne).
-          trailing: Column(
+          onTap: () => _ouvrirFormulaire(existant: p),
+          // taper = éditer aussi
+          // Modifier puis Supprimer, côte à côte (Row : tient dans le trailing court du ListTile).
+
+          trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               IconButton(
@@ -453,6 +459,8 @@ class _PageArticlesState extends State<PageArticles> {
                                   const TextStyle(fontWeight: FontWeight.bold),
                               overflow: TextOverflow.ellipsis),
                         ),
+                        // Modifier puis Supprimer, côte à côte (Row : tient dans le trailing court du ListTile).
+
                         Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
