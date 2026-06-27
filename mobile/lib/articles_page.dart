@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'models/article.dart';
 import 'services/article_service.dart';
+import 'services/mouvement_service.dart';
 
 /// ===========================================================================
 ///  Catalogue ARTICLES — cœur du MVP "gestion de stocks".
@@ -35,6 +36,8 @@ class PageArticles extends StatefulWidget {
 class _PageArticlesState extends State<PageArticles> {
   // Le service qui parle au backend (l'UI ne fait plus d'HTTP elle-même).
   final ArticleService _service = ArticleService();
+  // Service dédié aux mouvements de stock (entrée / sortie / ajustement).
+  final MouvementService _mouvementService = MouvementService();
 
   List<Article> _articles = [];
   bool _chargement = true;
@@ -249,6 +252,96 @@ class _PageArticlesState extends State<PageArticles> {
   }
 
   ///---------------------------------------------------------------------------
+  /// Dialogue pour enregistrer un mouvement de stock sur un article.
+  /// Saisie : type (entrée/sortie/ajustement) + quantité + motif.
+  /// Puis POST via le service, gestion des codes HTTP, et refresh de la liste.
+  ///---------------------------------------------------------------------------
+  Future<void> _ouvrirMouvement(Article art) async {
+    String type = 'ENTREE'; // type sélectionné (valeur par défaut)
+    final qteCtrl = TextEditingController();
+    final motifCtrl = TextEditingController();
+
+    final valide = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Mouvement — ${art.reference}'),
+        // StatefulBuilder : permet de rafraîchir le Dropdown DANS le dialogue
+        // (sinon le changement de type ne s'afficherait pas).
+        content: StatefulBuilder(
+          builder: (context, setLocal) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Stock actuel : ${art.quantiteStock}'),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: type,
+                decoration: const InputDecoration(labelText: 'Type'),
+                items: const [
+                  DropdownMenuItem(value: 'ENTREE', child: Text('Entrée (+)')),
+                  DropdownMenuItem(value: 'SORTIE', child: Text('Sortie (−)')),
+                  DropdownMenuItem(
+                      value: 'AJUSTEMENT', child: Text('Ajustement (=)')),
+                ],
+                onChanged: (v) => setLocal(() => type = v!),
+              ),
+              TextField(
+                controller: qteCtrl,
+                decoration: const InputDecoration(labelText: 'Quantité'),
+                keyboardType: TextInputType.number,
+              ),
+              TextField(
+                controller: motifCtrl,
+                decoration:
+                    const InputDecoration(labelText: 'Motif (optionnel)'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Valider'),
+          ),
+        ],
+      ),
+    );
+
+    if (valide != true) return; // annulé
+
+    final quantite = int.tryParse(qteCtrl.text.trim()) ?? 0;
+    final code = await _mouvementService.creer(
+      articleId: art.id!,
+      type: type,
+      quantite: quantite,
+      motif: motifCtrl.text.trim(),
+    );
+    if (!mounted) return; // après un await : on vérifie que l'écran existe encore
+
+    // On traduit le code HTTP du backend en message utilisateur.
+    switch (code) {
+      case 201:
+        _afficherMessage('Mouvement enregistré ✅');
+        await _charger(); // recharge → le stock affiché se met à jour
+        break;
+      case 400:
+        _afficherMessage('Quantité invalide (doit être positive).');
+        break;
+      case 409:
+        _afficherMessage('Stock insuffisant pour cette sortie.');
+        break;
+      case 501:
+        _afficherMessage('Transfert pas encore disponible.');
+        break;
+      default:
+        _afficherMessage('Erreur $code.');
+    }
+  }
+
+  ///---------------------------------------------------------------------------
   ///  build
   ///---------------------------------------------------------------------------
   @override
@@ -405,6 +498,15 @@ class _PageArticlesState extends State<PageArticles> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
+                  icon: const Icon(Icons.swap_vert),
+                  tooltip: 'Mouvement',
+                  iconSize: 20,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  onPressed: () => _ouvrirMouvement(p),
+                ),
+                const SizedBox(width: 4),
+                IconButton(
                   icon: const Icon(Icons.edit_outlined),
                   tooltip: 'Modifier',
                   iconSize: 20,
@@ -536,8 +638,16 @@ class _PageArticlesState extends State<PageArticles> {
                                       fontWeight: FontWeight.bold)),
                               const Spacer(),
                               IconButton(
+                                icon: const Icon(Icons.swap_vert),
+                                tooltip: 'Mouvement',
+                                iconSize: 20,
+                                visualDensity: VisualDensity.compact,
+                                onPressed: () => _ouvrirMouvement(art),
+                              ),
+                              IconButton(
                                 icon: const Icon(Icons.edit_outlined),
                                 tooltip: 'Modifier',
+                                iconSize: 20,
                                 visualDensity: VisualDensity.compact,
                                 onPressed: () =>
                                     _ouvrirFormulaire(existant: art),
@@ -545,6 +655,7 @@ class _PageArticlesState extends State<PageArticles> {
                               IconButton(
                                 icon: const Icon(Icons.delete_outline),
                                 tooltip: 'Supprimer',
+                                iconSize: 20,
                                 visualDensity: VisualDensity.compact,
                                 onPressed: () => _supprimer(art),
                               ),
