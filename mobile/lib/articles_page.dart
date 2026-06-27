@@ -373,41 +373,55 @@ class _PageArticlesState extends State<PageArticles> {
       separatorBuilder: (_, __) => const Divider(height: 1),
       itemBuilder: (context, i) {
         final p = _articles[i];
-        return ListTile(
-          leading: Icon(
-            p.enAlerte
-                ? Icons.warning_amber_rounded
-                : Icons.inventory_2_outlined,
-            color: p.enAlerte ? Colors.orange : null,
+        return Container(
+          // Marge horizontale : décolle le filet du bord de l'écran.
+          margin: const EdgeInsets.symmetric(horizontal: 8),
+          // A : filet coloré à gauche (orange si rupture, sinon indigo).
+          decoration: BoxDecoration(
+            border: Border(
+              left: BorderSide(
+                // Normal : gris discret. Alerte : orange franc (ça claque).
+                color: p.enAlerte ? Colors.orange : Colors.grey.shade300,
+                width: 4,
+              ),
+            ),
           ),
-          title: Text('${p.reference} — ${p.designation}'),
-          subtitle:
-              Text('${p.description}\n${p.prixUnitaire.toStringAsFixed(2)} €'),
-          isThreeLine: true,
-          onTap: () => _ouvrirFormulaire(existant: p),
-          // taper = éditer aussi
-          // Modifier puis Supprimer, côte à côte (Row : tient dans le trailing court du ListTile).
-
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.edit_outlined),
-                tooltip: 'Modifier',
-                iconSize: 20,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                onPressed: () => _ouvrirFormulaire(existant: p),
-              ),
-              IconButton(
-                icon: const Icon(Icons.delete_outline),
-                tooltip: 'Supprimer',
-                iconSize: 20,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                onPressed: () => _supprimer(p),
-              ),
-            ],
+          child: ListTile(
+            // C : fond légèrement teinté si l'article est en alerte.
+            tileColor: p.enAlerte ? Colors.orange.shade50 : null,
+            leading: Icon(
+              p.enAlerte
+                  ? Icons.warning_amber_rounded
+                  : Icons.inventory_2_outlined,
+              color: p.enAlerte ? Colors.orange : null,
+            ),
+            title: Text('${p.reference} — ${p.designation}'),
+            subtitle:
+                Text('${p.description}\n${p.prixUnitaire.toStringAsFixed(2)} €'),
+            isThreeLine: true,
+            onTap: () => _ouvrirFormulaire(existant: p), // taper = éditer
+            // Modifier puis Supprimer, côte à côte (tient dans le trailing court).
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.edit_outlined),
+                  tooltip: 'Modifier',
+                  iconSize: 20,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  onPressed: () => _ouvrirFormulaire(existant: p),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline),
+                  tooltip: 'Supprimer',
+                  iconSize: 20,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  onPressed: () => _supprimer(p),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -449,6 +463,10 @@ class _PageArticlesState extends State<PageArticles> {
         itemCount: _articles.length,
         itemBuilder: (context, i) {
           final art = _articles[i];
+          // Design "signal" : normal SOBRE (gris), alerte qui CLAQUE (orange).
+          final enTeteFond =
+              art.enAlerte ? Colors.orange : Colors.grey.shade200;
+          final enTeteTexte = art.enAlerte ? Colors.white : Colors.black87;
           return Card(
             color: art.enAlerte ? Colors.orange.shade50 : null,
             // clipBehavior : indispensable pour que l'en-tête coloré respecte
@@ -471,8 +489,7 @@ class _PageArticlesState extends State<PageArticles> {
                 children: [
                   // ===== EN-TÊTE COLORÉ (icône + titre en blanc) =====
                   Container(
-                    color:
-                        art.enAlerte ? Colors.orange : Colors.indigo.shade400,
+                    color: enTeteFond,
                     padding:
                         const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     child: Row(
@@ -481,15 +498,15 @@ class _PageArticlesState extends State<PageArticles> {
                           art.enAlerte
                               ? Icons.warning_amber_rounded
                               : Icons.inventory_2_outlined,
-                          color: Colors.white,
+                          color: enTeteTexte,
                           size: 20,
                         ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(art.reference,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.white),
+                                  color: enTeteTexte),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis),
                         ),
