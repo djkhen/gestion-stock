@@ -451,67 +451,93 @@ class _PageArticlesState extends State<PageArticles> {
           final art = _articles[i];
           return Card(
             color: art.enAlerte ? Colors.orange.shade50 : null,
+            // clipBehavior : indispensable pour que l'en-tête coloré respecte
+            // les coins arrondis (sinon les angles de la bande dépassent).
+            clipBehavior: Clip.antiAlias,
+            // Bordure de la carte ; orange si l'article est en alerte de rupture.
+            shape: RoundedRectangleBorder(
+              side: BorderSide(
+                color: art.enAlerte ? Colors.orange : Colors.grey.shade300,
+                width: 1,
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
             child: InkWell(
-              //------------------------------------------------
-              // pour éditer l'article le ckick est sur InkWell
-              //------------------------------------------------
-              onTap: () => _ouvrirFormulaire(existant: art), // taper = éditer
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Row(
+              // taper sur la carte = éditer l'article.
+              onTap: () => _ouvrirFormulaire(existant: art),
+              child: Column(
+                // stretch : l'en-tête prend toute la largeur de la carte.
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // ===== EN-TÊTE COLORÉ (icône + titre en blanc) =====
+                  Container(
+                    color:
+                        art.enAlerte ? Colors.orange : Colors.indigo.shade400,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    child: Row(
                       children: [
                         Icon(
                           art.enAlerte
                               ? Icons.warning_amber_rounded
                               : Icons.inventory_2_outlined,
-                          color: art.enAlerte ? Colors.orange : null,
+                          color: Colors.white,
+                          size: 20,
                         ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(art.reference,
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.bold),
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
-                    // Expanded : la description absorbe l'espace restant et
-                    // s'ellipse -> la carte ne deborde JAMAIS (mobile, web, resize).
-                    Expanded(
-                      child: Text(art.description,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: Colors.grey)),
+                  ),
+                  // ===== CORPS (description + bas de carte) =====
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Expanded : la description absorbe l'espace restant
+                          // et s'ellipse -> la carte ne déborde jamais.
+                          Expanded(
+                            child: Text(art.description,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(color: Colors.grey)),
+                          ),
+                          const SizedBox(height: 6),
+                          // Bas : unité à gauche, actions à droite (Spacer).
+                          Row(
+                            children: [
+                              Text(art.unite.toString(),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold)),
+                              const Spacer(),
+                              IconButton(
+                                icon: const Icon(Icons.edit_outlined),
+                                tooltip: 'Modifier',
+                                visualDensity: VisualDensity.compact,
+                                onPressed: () =>
+                                    _ouvrirFormulaire(existant: art),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline),
+                                tooltip: 'Supprimer',
+                                visualDensity: VisualDensity.compact,
+                                onPressed: () => _supprimer(art),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 6),
-                    // Bas de carte : unité à gauche, actions à droite.
-                    // Spacer pousse les boutons tout à droite.
-                    Row(
-                      children: [
-                        Text(art.unite.toString(),
-                            style: const TextStyle(fontWeight: FontWeight.bold)),
-                        const Spacer(),
-                        IconButton(
-                          icon: const Icon(Icons.edit_outlined),
-                          tooltip: 'Modifier',
-                          visualDensity: VisualDensity.compact,
-                          onPressed: () => _ouvrirFormulaire(existant: art),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline),
-                          tooltip: 'Supprimer',
-                          visualDensity: VisualDensity.compact,
-                          onPressed: () => _supprimer(art),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           );
