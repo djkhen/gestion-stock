@@ -41,6 +41,9 @@ class _PageArticlesState extends State<PageArticles> {
   // Service dédié aux mouvements de stock (entrée / sortie / ajustement).
   final MouvementService _mouvementService = MouvementService();
 
+  // 1. un controller pour le champ de recherche
+  final TextEditingController _rechercheCtrl = TextEditingController();
+
   List<Article> _articles = [];
   bool _chargement = true;
   String? _erreur;
@@ -53,6 +56,13 @@ class _PageArticlesState extends State<PageArticles> {
   void initState() {
     super.initState();
     _charger();
+  }
+
+// 4. ⭐ libérer le controller (ta Q6 !) — dans dispose() du State
+  @override
+  void dispose() {
+    _rechercheCtrl.dispose();
+    super.dispose();
   }
 
   ///---------------------------------------------------------------------------
@@ -431,6 +441,7 @@ class _PageArticlesState extends State<PageArticles> {
                 // (un TextField ne peut pas avoir une largeur infinie).
                 Expanded(
                   child: TextField(
+                    controller: _rechercheCtrl,
                     decoration: InputDecoration(
                       prefixIcon: const Icon(Icons.search),
                       hintText: 'Rechercher (référence, désignation)...',
@@ -440,6 +451,8 @@ class _PageArticlesState extends State<PageArticles> {
                           : IconButton(
                               icon: const Icon(Icons.clear),
                               onPressed: () {
+                                _rechercheCtrl
+                                    .clear(); // ← vide le texte AFFICHÉ
                                 setState(() => _recherche = '');
                                 _charger();
                               },
