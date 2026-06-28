@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'models/article.dart';
+import 'models/mouvement.dart';
 import 'services/article_service.dart';
 import 'services/mouvement_service.dart';
 
@@ -36,6 +37,7 @@ class PageArticles extends StatefulWidget {
 class _PageArticlesState extends State<PageArticles> {
   // Le service qui parle au backend (l'UI ne fait plus d'HTTP elle-même).
   final ArticleService _service = ArticleService();
+
   // Service dédié aux mouvements de stock (entrée / sortie / ajustement).
   final MouvementService _mouvementService = MouvementService();
 
@@ -143,7 +145,59 @@ class _PageArticlesState extends State<PageArticles> {
   }
 
   ///---------------------------------------------------------------------------
+  /// Ouverir historique  d'article donné
+  ///---------------------------------------------------------------------------
+  Future<void> _ouvrirHistorique(Article article) async {
+    // 1) CHARGER d'abord
+    final List<Mouvement> mouvements;
+    try {
+      final m = await _mouvementService.historique(article.id!);
+      if (!mounted) return;
+      mouvements = m;
+    } catch (e) {
+      if (!mounted) return;
+      _afficherMessage("Impossible de charger l'historique.");
+      return;
+    }
+    // 2) AFFICHER la liste dans le dialogue
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Historique — ${article.designation}'),
+        content: mouvements.isEmpty
+            ? const Text('Aucun mouvement.')
+            : SizedBox(
+                width: double.maxFinite,
+                //Donner au widget la plus grande largeur possible dans les contraintes qui lui sont imposée
+                //est une constante qui représente le plus grand nombre double fini.
+                child: ListView(
+                  shrinkWrap: true,
+                  // ← liste bornée dans le => dialogue adapte ta taille à celle de ton contenu
+                  children: mouvements
+                      .map((m) => ListTile(
+                            title: Text('${m.type}  ×${m.quantite}'),
+                            subtitle: Text(
+                              '${m.date.day}/${m.date.month}/${m.date.year} '
+                              '${m.date.hour}h${m.date.minute} — ${m.motif}',
+                            ),
+                          ))
+                      .toList(),
+                ),
+              ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Retour'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  ///---------------------------------------------------------------------------
   /// Formulaire d'ajout / édition. Pré-rempli si `existant` est fourni.
+  ///  édition  => Article exite
+  ///  Sreation =>  Article NON exite
   ///---------------------------------------------------------------------------
   Future<void> _ouvrirFormulaire({Article? existant}) async {
     final refCtrl = TextEditingController(text: existant?.reference ?? '');
@@ -319,7 +373,9 @@ class _PageArticlesState extends State<PageArticles> {
       quantite: quantite,
       motif: motifCtrl.text.trim(),
     );
-    if (!mounted) return; // après un await : on vérifie que l'écran existe encore
+    if (!mounted) {
+      return; // après un await : on vérifie que l'écran existe encore
+    }
 
     // On traduit le code HTTP du backend en message utilisateur.
     switch (code) {
@@ -450,6 +506,60 @@ class _PageArticlesState extends State<PageArticles> {
     );
   }
 
+  /// Menu ⋮ des actions sur un article (centralisé : utilisé en liste ET en grille).
+  Widget _menuActions(Article art) {
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.more_vert),
+      tooltip: 'Actions',
+      onSelected: (valeur) {
+        switch (valeur) {
+          case 'historique':
+            _ouvrirHistorique(art);
+            break;
+          case 'mouvement':
+            _ouvrirMouvement(art);
+            break;
+          case 'modifier':
+            _ouvrirFormulaire(existant: art);
+            break;
+          case 'supprimer':
+            _supprimer(art);
+            break;
+        }
+      },
+      itemBuilder: (context) => const [
+        PopupMenuItem(
+            value: 'historique',
+            child: Row(children: [
+              Icon(Icons.history),
+              SizedBox(width: 12),
+              Text('Historique')
+            ])),
+        PopupMenuItem(
+            value: 'mouvement',
+            child: Row(children: [
+              Icon(Icons.swap_vert),
+              SizedBox(width: 12),
+              Text('Mouvement')
+            ])),
+        PopupMenuItem(
+            value: 'modifier',
+            child: Row(children: [
+              Icon(Icons.edit_outlined),
+              SizedBox(width: 12),
+              Text('Modifier')
+            ])),
+        PopupMenuItem(
+            value: 'supprimer',
+            child: Row(children: [
+              Icon(Icons.delete_outline, color: Colors.red),
+              SizedBox(width: 12),
+              Text('Supprimer')
+            ])),
+      ],
+    );
+  }
+
   //----------------------------------------------------------------------------
   // Widget presented on the PAD
   // MÉTHODE = une fonction DANS la classe
@@ -465,7 +575,7 @@ class _PageArticlesState extends State<PageArticles> {
       itemCount: _articles.length,
       separatorBuilder: (_, __) => const Divider(height: 1),
       itemBuilder: (context, i) {
-        final p = _articles[i];
+        final art = _articles[i];
         return Container(
           // Marge horizontale : décolle le filet du bord de l'écran.
           margin: const EdgeInsets.symmetric(horizontal: 8),
@@ -474,54 +584,31 @@ class _PageArticlesState extends State<PageArticles> {
             border: Border(
               left: BorderSide(
                 // Normal : gris discret. Alerte : orange franc (ça claque).
-                color: p.enAlerte ? Colors.orange : Colors.grey.shade300,
+                color: art.enAlerte ? Colors.orange : Colors.grey.shade300,
                 width: 4,
               ),
             ),
           ),
           child: ListTile(
             // C : fond légèrement teinté si l'article est en alerte.
-            tileColor: p.enAlerte ? Colors.orange.shade50 : null,
+            tileColor: art.enAlerte ? Colors.orange.shade50 : null,
             leading: Icon(
-              p.enAlerte
+              art.enAlerte
                   ? Icons.warning_amber_rounded
                   : Icons.inventory_2_outlined,
-              color: p.enAlerte ? Colors.orange : null,
+              color: art.enAlerte ? Colors.orange : null,
             ),
-            title: Text('${p.reference} — ${p.designation}'),
-            subtitle:
-                Text('${p.description}\n${p.prixUnitaire.toStringAsFixed(2)} €'),
+            title: Text('${art.reference} — ${art.designation}'),
+            subtitle: Text(
+                '${art.description}\n${art.prixUnitaire.toStringAsFixed(2)} €'),
             isThreeLine: true,
-            onTap: () => _ouvrirFormulaire(existant: p), // taper = éditer
+            onTap: () => _ouvrirFormulaire(existant: art),
+            // taper = éditer
             // Modifier puis Supprimer, côte à côte (tient dans le trailing court).
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                IconButton(
-                  icon: const Icon(Icons.swap_vert),
-                  tooltip: 'Mouvement',
-                  iconSize: 20,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  onPressed: () => _ouvrirMouvement(p),
-                ),
-                const SizedBox(width: 4),
-                IconButton(
-                  icon: const Icon(Icons.edit_outlined),
-                  tooltip: 'Modifier',
-                  iconSize: 20,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  onPressed: () => _ouvrirFormulaire(existant: p),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline),
-                  tooltip: 'Supprimer',
-                  iconSize: 20,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  onPressed: () => _supprimer(p),
-                ),
+                _menuActions(art),
               ],
             ),
           ),
@@ -552,16 +639,6 @@ class _PageArticlesState extends State<PageArticles> {
           //   NB : les deux sont EXCLUSIFS (si on met les deux, mainAxisExtent gagne).
           mainAxisExtent: 150,
         ),
-        /*
-        final int? id;
-        final String reference;
-        final String designation;
-        final String description;
-        final String unite;
-        final int quantiteStock;
-        final int seuilAlerte;
-        final double prixUnitaire;
-        */
         itemCount: _articles.length,
         itemBuilder: (context, i) {
           final art = _articles[i];
@@ -637,28 +714,8 @@ class _PageArticlesState extends State<PageArticles> {
                                   style: const TextStyle(
                                       fontWeight: FontWeight.bold)),
                               const Spacer(),
-                              IconButton(
-                                icon: const Icon(Icons.swap_vert),
-                                tooltip: 'Mouvement',
-                                iconSize: 20,
-                                visualDensity: VisualDensity.compact,
-                                onPressed: () => _ouvrirMouvement(art),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.edit_outlined),
-                                tooltip: 'Modifier',
-                                iconSize: 20,
-                                visualDensity: VisualDensity.compact,
-                                onPressed: () =>
-                                    _ouvrirFormulaire(existant: art),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.delete_outline),
-                                tooltip: 'Supprimer',
-                                iconSize: 20,
-                                visualDensity: VisualDensity.compact,
-                                onPressed: () => _supprimer(art),
-                              ),
+                              // Un seul bouton ⋮ → menu des 4 actions (plus d'overflow).
+                              _menuActions(art),
                             ],
                           ),
                         ],

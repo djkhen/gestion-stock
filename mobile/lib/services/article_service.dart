@@ -13,13 +13,15 @@ import '../models/article.dart';
 class ArticleService {
   /// URL de base de l'API (par défaut celle de main.dart).
   final String baseUrl;
+
   ArticleService({this.baseUrl = apiBaseUrl});
 
   /// GET /articles (avec ?q= si une recherche est fournie).
   /// Renvoie la liste des articles, ou lève une exception en cas d'échec.
   Future<List<Article>> liste({String recherche = ''}) async {
     final uri = Uri.parse('$baseUrl/articles').replace(
-      queryParameters: recherche.trim().isEmpty ? null : {'q': recherche.trim()},
+      queryParameters:
+          recherche.trim().isEmpty ? null : {'q': recherche.trim()},
     );
     final reponse = await http.get(uri);
     if (reponse.statusCode == 200) {
@@ -33,7 +35,8 @@ class ArticleService {
   /// Renvoie le code HTTP (201 créé, 200 modifié, 409 référence en double...)
   /// pour que l'UI affiche le bon message.
   Future<int> enregistrer(Article article) async {
-    final estModification = article.id != null;
+    final estModification =
+        article.id != null; //résultat est toujours un booléen (true ou false).
     final uri = estModification
         ? Uri.parse('$baseUrl/articles/${article.id}')
         : Uri.parse('$baseUrl/articles');

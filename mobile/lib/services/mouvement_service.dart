@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../main.dart' show apiBaseUrl;
+import '../models/mouvement.dart';
 
 /// Service d'accès à l'API /mouvements du backend Quarkus.
 ///
@@ -9,6 +10,7 @@ import '../main.dart' show apiBaseUrl;
 /// Un mouvement modifie le stock de l'article côté serveur (ENTREE/SORTIE/AJUSTEMENT).
 class MouvementService {
   final String baseUrl;
+
   MouvementService({this.baseUrl = apiBaseUrl});
 
   /// POST /mouvements?articleId=X  avec  { type, quantite, motif }.
@@ -34,5 +36,20 @@ class MouvementService {
       body: jsonEncode({'type': type, 'quantite': quantite, 'motif': motif}),
     );
     return reponse.statusCode;
+  }
+
+  /// mouvements                 → liste() → TOUS les mouvements
+  /// mouvements/article/{id}    → listeParArticle() → ceux d'UN article  ✅
+  ///---------------------------------------------------------------------------
+
+  Future<List<Mouvement>> historique(int articleId) async {
+    // GET  $baseUrl/mouvements/article/$articleId
+    final uri = Uri.parse('$baseUrl/mouvements/article/$articleId');
+    final reponse = await http.get(uri);
+    if (reponse.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(utf8.decode(reponse.bodyBytes));
+      return data.map((e) => Mouvement.fromJson(e)).toList();
+    }
+    throw Exception('Erreur serveur : ${reponse.statusCode}');
   }
 }
