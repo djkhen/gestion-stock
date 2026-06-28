@@ -231,6 +231,49 @@ ou multi-OS). Optionnel en solo, mais propre.
 
 ---
 
+## 🗄️ Consulter la base de données (PostgreSQL dans Docker)
+
+La base tourne dans le conteneur **`gs-db`** (base `gestionstockdb`, user/mdp `gs`/`gs`).
+
+### Session interactive psql
+```bash
+# depuis le dossier gestion-stock (db = le SERVICE docker-compose)
+docker compose exec db psql -U gs -d gestionstockdb
+# ou par le NOM du conteneur, de n'importe où :
+docker exec -it gs-db psql -U gs -d gestionstockdb
+```
+
+### Commandes psql utiles (une fois dedans)
+```sql
+\dt                                  -- liste les TABLES
+\d article                           -- décrit une table (colonnes, types, contraintes)
+SELECT * FROM article;               -- voir les données
+SELECT * FROM mouvement;             -- voir les mouvements
+SELECT * FROM mouvement WHERE article_id = 1;   -- filtrer
+\q                                   -- QUITTER
+```
+
+### Requête « one-shot » (sans entrer dans psql)
+```bash
+docker compose exec db psql -U gs -d gestionstockdb -c "SELECT * FROM article;"
+```
+Le `-c "..."` exécute UNE requête et rend la main (check rapide).
+
+### Outil graphique (DBeaver / IntelliJ Database / pgAdmin)
+⚠️ Le conteneur `gs-db` **n'expose PAS** le port 5432 à l'hôte par défaut (interne au réseau Docker).
+Pour brancher un outil GUI, **mapper le port** dans `docker-compose.yml` :
+```yaml
+db:
+  ports:
+    - "5432:5432"
+```
+puis se connecter à `localhost:5432`, base `gestionstockdb`, user/mdp `gs`/`gs`.
+
+> 🧠 `docker compose exec <service> <commande>` = exécuter une commande **dans** un conteneur qui tourne.
+> Pour la base : `psql -U <user> -d <base>`.
+
+---
+
 ## 🗂️ Repères du projet
 
 | Élément | Valeur |
