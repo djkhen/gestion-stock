@@ -60,11 +60,39 @@ Flutter), le tout conteneurisé avec **Docker**.
 ### 📂 Architecture mobile (en couches)
 ```
 mobile/lib/
-├── models/article.dart          → la donnée + fromJson/toJson (enAlerte)
-├── services/article_service.dart→ appels HTTP /articles (liste, enregistrer, supprimer)
-├── articles_page.dart           → l'écran (liste/grille responsive, CRUD)
-└── main.dart                    → apiBaseUrl + MaterialApp
+├── models/        → la donnée + (dé)sérialisation JSON
+│   ├── article.dart      (enAlerte)
+│   └── mouvement.dart
+├── services/      → appels HTTP, ZÉRO logique d'UI
+│   ├── article_service.dart
+│   └── mouvement_service.dart
+├── widgets/       → les DIALOGUES extraits (UI réutilisable, se gèrent seuls)
+│   ├── article_form_dialog.dart   (Stateful : 7 controllers + dispose AUTO)
+│   ├── mouvement_dialog.dart       (Stateful : controllers + dispose AUTO)
+│   └── historique_dialog.dart      (Stateless : juste l'affichage)
+├── articles_page.dart  → l'écran : ORCHESTRE (ouvre dialogues, appelle services, refresh)
+└── main.dart           → apiBaseUrl + MaterialApp
 ```
+
+> 🧩 **Pourquoi extraire les dialogues dans `widgets/`** :
+> - Chaque dialogue = un `StatefulWidget` → il gère ses `TextEditingController` dans **son propre `dispose()`** → **plus aucune fuite mémoire** (Flutter l'appelle tout seul à la fermeture). Fini la gestion manuelle des controllers.
+> - **Séparation** : le dialogue = UI pure (capture + renvoie un résultat) ; la page = orchestration (service + messages + refresh).
+> - Piège : `late final` controllers déclarés SEULS, créés dans `initState()` (où `widget` est accessible), JAMAIS dans les initialiseurs de champ. Et le widget doit être **public** (sans `_`) pour être importable.
+
+### 🧩 Design : que RENVOIE un dialogue ? (saisie/DTO vs Entité)
+
+Un dialogue renvoie son résultat via `Navigator.pop(context, resultat)`. **Que choisir comme type ?**
+
+| Cas | Renvoyer | Pourquoi |
+|---|---|---|
+| Le modèle gère déjà « neuf » (`id` nullable, pas de champ « serveur » obligatoire) | **l'objet** (ex. `Article`, `id: null` = création) | le modèle est conçu pour ça |
+| La saisie ≠ l'entité stockée (`id`/`date` générés par le serveur) | **un record** ou une **petite classe de saisie** (ex. `({type, quantite, motif})`) | l'INPUT de création n'est PAS l'ENTITÉ |
+
+**Exemples du projet :**
+- `ArticleFormDialog` → renvoie un **`Article`** (car `Article.id` est `int?` nullable → article neuf = `id: null`, article édité = `id` rempli → déclenche un PUT).
+- `MouvementDialog` → renvoie un **record** `({String type, int quantite, String motif})` (car `Mouvement` exige `id` + `date` posés par le serveur via `@PrePersist` → impossible d'en construire un « propre » à la saisie).
+
+> 🧠 **Concept d'archi : DTO/Command ≠ Entity.** Ce qu'on **envoie pour créer** (la saisie) ≠ ce qui est **stocké** (l'entité). Si l'entité a des champs « serveur uniquement » obligatoires → utiliser un **record** (léger, zéro classe) ou une **classe de saisie** dédiée, surtout pas une entité à moitié remplie de valeurs bidon.
 
 ---
 
