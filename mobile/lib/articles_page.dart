@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/widgets/histirique_dialog.dart';
 
 import 'models/article.dart';
 import 'models/mouvement.dart';
@@ -174,35 +175,8 @@ class _PageArticlesState extends State<PageArticles> {
     // 2) AFFICHER la liste dans le dialogue
     await showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Historique — ${article.designation}'),
-        content: mouvements.isEmpty
-            ? const Text('Aucun mouvement.')
-            : SizedBox(
-                width: double.maxFinite,
-                //Donner au widget la plus grande largeur possible dans les contraintes qui lui sont imposée
-                //est une constante qui représente le plus grand nombre double fini.
-                child: ListView(
-                  shrinkWrap: true,
-                  // ← liste bornée dans le => dialogue adapte ta taille à celle de ton contenu
-                  children: mouvements
-                      .map((m) => ListTile(
-                            title: Text('${m.type}  ×${m.quantite}'),
-                            subtitle: Text(
-                              '${m.date.day}/${m.date.month}/${m.date.year} '
-                              '${m.date.hour}h${m.date.minute} — ${m.motif}',
-                            ),
-                          ))
-                      .toList(),
-                ),
-              ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Retour'),
-          ),
-        ],
-      ),
+      builder: (_) =>
+          HistoriqueDialog(article: article, mouvements: mouvements),
     );
   }
 
