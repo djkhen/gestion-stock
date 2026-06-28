@@ -210,6 +210,29 @@ git branch -d feature/<nom>
 > - `git branch -d` **refuse** de supprimer une branche **non fusionnée** = garde-fou (`-D` force, à éviter).
 > - Vérifier l'état à tout moment : `git status` (modifs) · `git log --oneline -3` (derniers commits) · `git branch` (branches).
 
+### Oups, j'ai déjà modifié... alors que je suis sur `main`
+
+Cas fréquent : on a codé **directement sur `main`** sans avoir créé de branche. Pas de panique — on déplace ça sur une branche **sans rien perdre**.
+
+**Le truc clé** : `git checkout -b <branche>` **EMPORTE** les modifs non commitées sur la nouvelle branche (pas besoin de `git stash`).
+
+**La bonne séquence :**
+```bash
+git checkout -b fix/<nom>          # 1. crée la branche → ta modif non commitée SUIT
+git add .                          # 2. stage (sur la branche, c'est clean)
+git commit -m "fix: <description>"
+# 3. puis le cycle habituel :
+git push -u origin fix/<nom>
+git checkout main && git pull
+git merge fix/<nom>
+git push
+```
+
+> 🧠 **À retenir :**
+> - `git add` = **STAGE** (inoffensif, même sur main) ≠ `git commit` = **ENREGISTRE** (à faire sur une branche).
+> - **Ne JAMAIS `commit` directement sur `main`** (sauf micro-doc) → toujours **brancher d'abord**.
+> - `git checkout -b` transporte les modifs en cours → la branche « hérite » de ton travail non commité.
+
 ### Avertissement fins de ligne (LF / CRLF)
 
 **1. Le warning** (sur Windows, au moment du `git add`) :
