@@ -4,6 +4,8 @@ import 'models/article.dart';
 import 'models/mouvement.dart';
 import 'services/article_service.dart';
 import 'services/mouvement_service.dart';
+import 'widgets/article_form_dialog.dart';
+import 'widgets/mouvement_dialog.dart';
 
 /// ===========================================================================
 ///  Catalogue ARTICLES — cœur du MVP "gestion de stocks".
@@ -210,102 +212,12 @@ class _PageArticlesState extends State<PageArticles> {
   ///  Sreation =>  Article NON exite
   ///---------------------------------------------------------------------------
   Future<void> _ouvrirFormulaire({Article? existant}) async {
-    final refCtrl = TextEditingController(text: existant?.reference ?? '');
-    final desigCtrl = TextEditingController(text: existant?.designation ?? '');
-    final descCtrl = TextEditingController(text: existant?.description ?? '');
-    final uniteCtrl = TextEditingController(text: existant?.unite ?? 'piece');
-    final qteCtrl =
-        TextEditingController(text: (existant?.quantiteStock ?? 0).toString());
-    final seuilCtrl =
-        TextEditingController(text: (existant?.seuilAlerte ?? 0).toString());
-    final prixCtrl =
-        TextEditingController(text: (existant?.prixUnitaire ?? 0).toString());
-
+    // Le dialogue (widget) pré-remplit, capture la saisie et renvoie un Article
+    // (ou null si annulé). Il gère ses 7 controllers dans son propre dispose().
     final article = await showDialog<Article>(
       context: context,
-      builder: (context) => AlertDialog(
-        title:
-            Text(existant == null ? 'Nouvel article' : 'Modifier l\'article'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: refCtrl,
-                autofocus: true,
-                decoration: const InputDecoration(
-                    labelText: 'Référence *', hintText: 'ex: VIS-M6-20'),
-              ),
-              TextField(
-                controller: desigCtrl,
-                decoration: const InputDecoration(labelText: 'Désignation *'),
-                textCapitalization: TextCapitalization.sentences,
-              ),
-              TextField(
-                controller: descCtrl,
-                decoration: const InputDecoration(labelText: 'Description'),
-              ),
-              TextField(
-                controller: uniteCtrl,
-                decoration: const InputDecoration(
-                    labelText: 'Unité', hintText: 'piece, kg, litre...'),
-              ),
-              TextField(
-                controller: qteCtrl,
-                decoration:
-                    const InputDecoration(labelText: 'Quantité en stock'),
-                keyboardType: TextInputType.number,
-              ),
-              TextField(
-                controller: seuilCtrl,
-                decoration: const InputDecoration(labelText: 'Seuil d\'alerte'),
-                keyboardType: TextInputType.number,
-              ),
-              TextField(
-                controller: prixCtrl,
-                decoration: const InputDecoration(
-                    labelText: 'Prix unitaire (ex: 1.45)'),
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Annuler'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final reference = refCtrl.text.trim();
-              final designation = desigCtrl.text.trim();
-              // Validation minimale côté client (le backend revalide de toute façon).
-              if (reference.isEmpty || designation.isEmpty) return;
-              Navigator.pop(
-                context,
-                Article(
-                  id: existant?.id,
-                  // conserve l'id en édition -> déclenche un PUT
-                  reference: reference,
-                  designation: designation,
-                  description: descCtrl.text.trim(),
-                  unite: uniteCtrl.text.trim().isEmpty
-                      ? 'piece'
-                      : uniteCtrl.text.trim(),
-                  quantiteStock: int.tryParse(qteCtrl.text.trim()) ?? 0,
-                  seuilAlerte: int.tryParse(seuilCtrl.text.trim()) ?? 0,
-                  prixUnitaire:
-                      double.tryParse(prixCtrl.text.replaceAll(',', '.')) ?? 0,
-                ),
-              );
-            },
-            child: Text(existant == null ? 'Ajouter' : 'Enregistrer'),
-          ),
-        ],
-      ),
+      builder: (_) => ArticleFormDialog(existant: existant),
     );
-
     if (article != null) {
       await _enregistrer(article);
     }
@@ -321,67 +233,19 @@ class _PageArticlesState extends State<PageArticles> {
   /// Puis POST via le service, gestion des codes HTTP, et refresh de la liste.
   ///---------------------------------------------------------------------------
   Future<void> _ouvrirMouvement(Article art) async {
-    String type = 'ENTREE'; // type sélectionné (valeur par défaut)
-    final qteCtrl = TextEditingController();
-    final motifCtrl = TextEditingController();
-
-    final valide = await showDialog<bool>(
+    // Le dialogue (widget) capture la saisie et la RENVOIE ; la page orchestre
+    // (appel du service + messages + refresh). Le widget gère ses controllers seul.
+    final saisie = await showDialog<SaisieMouvement>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Mouvement — ${art.reference}'),
-        // StatefulBuilder : permet de rafraîchir le Dropdown DANS le dialogue
-        // (sinon le changement de type ne s'afficherait pas).
-        content: StatefulBuilder(
-          builder: (context, setLocal) => Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Stock actuel : ${art.quantiteStock}'),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                value: type,
-                decoration: const InputDecoration(labelText: 'Type'),
-                items: const [
-                  DropdownMenuItem(value: 'ENTREE', child: Text('Entrée (+)')),
-                  DropdownMenuItem(value: 'SORTIE', child: Text('Sortie (−)')),
-                  DropdownMenuItem(
-                      value: 'AJUSTEMENT', child: Text('Ajustement (=)')),
-                ],
-                onChanged: (v) => setLocal(() => type = v!),
-              ),
-              TextField(
-                controller: qteCtrl,
-                decoration: const InputDecoration(labelText: 'Quantité'),
-                keyboardType: TextInputType.number,
-              ),
-              TextField(
-                controller: motifCtrl,
-                decoration:
-                    const InputDecoration(labelText: 'Motif (optionnel)'),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuler'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Valider'),
-          ),
-        ],
-      ),
+      builder: (_) => MouvementDialog(article: art),
     );
+    if (saisie == null) return; // annulé (Navigator.pop sans valeur)
 
-    if (valide != true) return; // annulé
-
-    final quantite = int.tryParse(qteCtrl.text.trim()) ?? 0;
     final code = await _mouvementService.creer(
       articleId: art.id!,
-      type: type,
-      quantite: quantite,
-      motif: motifCtrl.text.trim(),
+      type: saisie.type,
+      quantite: saisie.quantite,
+      motif: saisie.motif,
     );
     if (!mounted) {
       return; // après un await : on vérifie que l'écran existe encore
@@ -612,8 +476,8 @@ class _PageArticlesState extends State<PageArticles> {
               color: art.enAlerte ? Colors.orange : null,
             ),
             title: Text('${art.reference} — ${art.designation}'),
-            subtitle: Text(
-                '${art.description}\n${art.prixUnitaire.toStringAsFixed(2)} €'),
+            subtitle: Text('${art.description}\n'
+                '${art.prixUnitaire.toStringAsFixed(2)} € Stock ${art.quantiteStock} ${art.unite} '),
             isThreeLine: true,
             onTap: () => _ouvrirFormulaire(existant: art),
             // taper = éditer
@@ -723,7 +587,7 @@ class _PageArticlesState extends State<PageArticles> {
                           // Bas : unité à gauche, actions à droite (Spacer).
                           Row(
                             children: [
-                              Text(art.unite.toString(),
+                              Text("Stock ${art.quantiteStock} ${art.unite}",
                                   style: const TextStyle(
                                       fontWeight: FontWeight.bold)),
                               const Spacer(),
