@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:mobile/widgets/histirique_dialog.dart';
+import 'package:mobile/widgets/historique_dialog.dart';
 
 import 'models/article.dart';
 import 'models/mouvement.dart';

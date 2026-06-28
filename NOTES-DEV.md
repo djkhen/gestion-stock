@@ -237,6 +237,8 @@ git branch -d feature/<nom>
 >   (évite l'erreur `pathspec '...' did not match` quand on est déjà dans un sous-dossier).
 > - `git branch -d` **refuse** de supprimer une branche **non fusionnée** = garde-fou (`-D` force, à éviter).
 > - Vérifier l'état à tout moment : `git status` (modifs) · `git log --oneline -3` (derniers commits) · `git branch` (branches).
+> - **⭐ 1er push d'une branche** → `git push -u origin <branche>` (le `-u` = *set upstream*, dit à git **OÙ** pousser). L'erreur `fatal: ... has no upstream branch` = tu as oublié le `-u origin <branche>`. Les pushes **suivants** → `git push` tout court (il sait déjà).
+> - **Renommer un fichier** suivi par git → `git mv <ancien> <nouveau>` (renomme **ET** garde l'historique ; mieux que supprimer/recréer). ⚠️ Penser à corriger les `import` qui le référencent.
 
 ### Oups, j'ai déjà modifié... alors que je suis sur `main`
 
