@@ -173,6 +173,64 @@ docker compose exec db psql -U gs -d gestionstockdb   # console SQL
 
 ---
 
+## 🔀 Git
+
+### Workflow branche-par-branche — LE CYCLE COMPLET
+
+```bash
+# ── 1. CRÉER la branche (depuis un main à jour) ───────────────
+git checkout main
+git pull
+git checkout -b feature/<nom>
+
+# ── 2. ... coder la feature ... ───────────────────────────────
+
+# ── 3. ENREGISTRER (stage puis commit) ────────────────────────
+git add .                          # stage TOUT (relatif au dossier courant)
+git commit -m "feat: <description>"
+
+# ── 4. SAUVEGARDER + FUSIONNER ────────────────────────────────
+git push -u origin feature/<nom>   # 1) pousse la branche sur GitHub
+git checkout main                  # 2) retour sur main
+git pull                           # 3) main à jour (si bossé ailleurs)
+git merge feature/<nom>            # 4) fusionne la feature dans main
+git push                           # 5) envoie main à jour sur GitHub
+
+# ── 5. (optionnel) NETTOYER la branche fusionnée ──────────────
+git branch -d feature/<nom>
+```
+
+> 🧠 **Mantra à mémoriser** :
+> **brancher → coder → `add` → `commit` → `push` branche → `main` → `pull` → `merge` → `push`**
+>
+> **Pièges à retenir :**
+> - **`commit` AVANT `push`** : `push` envoie les **commits**, pas les modifs en cours. (Modif après un push ? → re-`add` → re-`commit` → re-`push`.)
+> - `git add <chemin>` est **relatif au dossier courant** → `git add .` = « tout depuis ici »
+>   (évite l'erreur `pathspec '...' did not match` quand on est déjà dans un sous-dossier).
+> - `git branch -d` **refuse** de supprimer une branche **non fusionnée** = garde-fou (`-D` force, à éviter).
+> - Vérifier l'état à tout moment : `git status` (modifs) · `git log --oneline -3` (derniers commits) · `git branch` (branches).
+
+### Avertissement fins de ligne (LF / CRLF)
+
+**1. Le warning** (sur Windows, au moment du `git add`) :
+```
+warning: in the working copy of '...', LF will be replaced by CRLF the next time Git touches it
+```
+👉 Simple ***warning*, PAS une erreur** : le `git add` / `commit` marche quand même.
+Git normalise les fins de ligne — **LF** (`\n`, standard Unix) stocké dans le dépôt,
+**CRLF** (`\r\n`, Windows) affiché sur la machine.
+
+**2. La recommandation** : créer un fichier **`.gitattributes`** à la racine du repo, contenant :
+```
+* text=auto
+```
+→ fixe une politique de fins de ligne homogène pour tout le monde (surtout utile en équipe
+ou multi-OS). Optionnel en solo, mais propre.
+
+> 🧠 Rappel : `warning:` = info, ça continue ; `fatal:` / `error:` = ça s'arrête.
+
+---
+
 ## 🗂️ Repères du projet
 
 | Élément | Valeur |

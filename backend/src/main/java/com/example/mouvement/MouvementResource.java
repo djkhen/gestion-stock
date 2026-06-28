@@ -1,7 +1,7 @@
 package com.example.mouvement;
 
 import com.example.Article;
-import io.quarkus.panache.common.Page;
+ 
 import io.quarkus.panache.common.Sort;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.*;
