@@ -44,12 +44,12 @@ class _PageArticlesState extends State<PageArticles> {
   // Service dédié aux mouvements de stock (entrée / sortie / ajustement).
   final MouvementService _mouvementService = MouvementService();
 
-  // 1. un controller pour le champ de recherche
+  //  un controller pour le champ de recherche
   final TextEditingController _rechercheCtrl = TextEditingController();
 
-  List<Article> _articles = [];
-  bool _chargement = true;
-  String? _erreur;
+  // --- état (remplace _produits / _chargement / _erreur) ---
+  late Future<List<Article>> _futureArticle;
+
   String _recherche = '';
 
   // Mode d'affichage choisi par l'utilisateur : false = liste, true = grille.
@@ -58,7 +58,7 @@ class _PageArticlesState extends State<PageArticles> {
   @override
   void initState() {
     super.initState();
-    _charger();
+    _futureArticle = _service.getArticles(recherche: _recherche);
   }
 
 // 4. ⭐ libérer le controller (ta Q6 !) — dans dispose() du State
@@ -71,26 +71,24 @@ class _PageArticlesState extends State<PageArticles> {
   ///---------------------------------------------------------------------------
   /// GET /articles (avec ?q= si une recherche est saisie), puis met à jour l'UI.
   ///---------------------------------------------------------------------------
-  Future<void> _charger() async {
+  Future<void> _chargerArticle() async {
+    // On réassigne le Future DANS un setState → le FutureBuilder se reconstruit.
+    final futur = _service.getArticles(recherche: _recherche);
+    // ⚠️ Corps en { } (et pas `=> _futureArticle = futur`) : avec la flèche,
+    // la closure RENVOIE le résultat de l'affectation (un Future), et setState
+    // l'interdit (« setState callback returned a Future »).
     setState(() {
-      _chargement = true;
-      _erreur = null;
+      _futureArticle = futur;
     });
+    // On attend la fin du vrai chargement pour que le RefreshIndicator
+    // tourne jusqu'au bout (sinon le spinner disparaîtrait instantanément).
+    // try/catch OBLIGATOIRE : ce Future est aussi observé par le FutureBuilder,
+    // qui affiche déjà l'erreur. Sans ce catch, l'erreur serait relancée ici
+    // et deviendrait une "unhandled exception" (le refresh "casse").
     try {
-      // Tout l'HTTP est dans le service → ici on ne fait que demander la liste.
-      final articles = await _service.liste(recherche: _recherche);
-      if (!mounted) return;
-      setState(() {
-        _articles = articles;
-        _chargement = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _erreur = "Impossible de charger les articles.\n"
-            "Vérifiez que le backend tourne.";
-        _chargement = false;
-      });
+      await futur;
+    } catch (_) {
+      // Erreur déjà gérée/affichée par le FutureBuilder (snapshot.hasError).
     }
   }
 
@@ -107,7 +105,7 @@ class _PageArticlesState extends State<PageArticles> {
         _afficherMessage(estModification
             ? 'Article « ${article.designation} » modifié ✅'
             : 'Article « ${article.designation} » ajouté ✅');
-        await _charger();
+        await _chargerArticle();
       } else if (code == 409) {
         _afficherMessage('Référence déjà utilisée (${article.reference}).');
       } else {
@@ -147,7 +145,7 @@ class _PageArticlesState extends State<PageArticles> {
       if (!mounted) return;
       if (code == 204) {
         _afficherMessage('Article supprimé 🗑️');
-        await _charger();
+        await _chargerArticle();
       } else {
         _afficherMessage('Erreur suppression : $code');
       }
@@ -229,7 +227,7 @@ class _PageArticlesState extends State<PageArticles> {
     switch (code) {
       case 201:
         _afficherMessage('Mouvement enregistré ✅');
-        await _charger(); // recharge → le stock affiché se met à jour
+        await _chargerArticle(); // recharge → le stock affiché se met à jour
         break;
       case 400:
         _afficherMessage('Quantité invalide (doit être positive).');
@@ -262,7 +260,7 @@ class _PageArticlesState extends State<PageArticles> {
             icon: Icon(_afficherEnGrille ? Icons.view_list : Icons.grid_view),
           ),
           IconButton(
-            onPressed: _charger,
+            onPressed: _chargerArticle,
             tooltip: 'Rafraîchir',
             icon: const Icon(Icons.refresh),
           ),
@@ -292,12 +290,12 @@ class _PageArticlesState extends State<PageArticles> {
                                 _rechercheCtrl
                                     .clear(); // ← vide le texte AFFICHÉ
                                 setState(() => _recherche = '');
-                                _charger();
+                                _chargerArticle();
                               },
                             ),
                     ),
                     onChanged: (v) => _recherche = v,
-                    onSubmitted: (_) => _charger(),
+                    onSubmitted: (_) => _chargerArticle(),
                   ),
                 ),
               ],
@@ -305,7 +303,7 @@ class _PageArticlesState extends State<PageArticles> {
           ),
           Expanded(
             child: RefreshIndicator(
-              onRefresh: _charger,
+              onRefresh: _chargerArticle,
               child: _construireCorps(),
             ),
           ),
@@ -320,39 +318,38 @@ class _PageArticlesState extends State<PageArticles> {
     );
   }
 
+  ///---------------------------------------------------------------------------
+  ///                      _construireCorps
+  ///---------------------------------------------------------------------------
   Widget _construireCorps() {
-    if (_chargement) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (_erreur != null) {
-      return Center(
-        // ← le message d'erreur revient ICI
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(_erreur!,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.red)),
-        ),
-      );
-    }
-    if (_articles.isEmpty) {
-      return ListView(
-        children: const [
-          Padding(
-            padding: EdgeInsets.all(24),
-            child: Text('Aucun article.', textAlign: TextAlign.center),
-          ),
-        ],
-      );
-    }
+    debugPrint("_construireCorps");
+    return FutureBuilder<List<Article>>(
+      future: _futureArticle,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text('${snapshot.error}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.red)),
+            ),
+          );
+        }
 
-    // Liste ADAPTATIVE : la mise en page change selon la largeur disponible.
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // Breakpoint : < 600px = mobile (listeView.Builder) ; si >= 600px = grand écran (GridView.builder)
-        return _afficherEnGrille
-            ? _vueGrille(constraints.maxWidth)
-            : _vueListe();
+        final articles = snapshot.data ?? [];
+        if (articles.isEmpty) {
+          return const Center(child: Text('Aucun article.'));
+        }
+        // Cas DONNÉES : on renvoie la liste ou la grille selon le mode.
+        return LayoutBuilder(
+          builder: (context, constraints) => _afficherEnGrille
+              ? _vueGrille(constraints.maxWidth, articles)
+              : _vueListe(articles),
+        );
       },
     );
   }
@@ -415,18 +412,18 @@ class _PageArticlesState extends State<PageArticles> {
   // Widget presented on the PAD
   // MÉTHODE = une fonction DANS la classe
   //----------------------------------------------------------------------------
-  Widget _vueListe() {
-    debugPrint(" DK -- _vueGrille Gestion de stock");
+  Widget _vueListe(List<Article> articles) {
+    debugPrint(" DK -- _vueListe Gestion de stock");
     // ListView (et non Center) pour que le "tirer pour rafraîchir" marche
     // même en cas d'erreur.
     // Un Center tout seul ne défile pas → le geste ne marche pas.
     // Donc on met un ListView — et oui tu peux centrer, mais DANS le ListView, pas un Center seul.
 
     return ListView.separated(
-      itemCount: _articles.length,
+      itemCount: articles.length,
       separatorBuilder: (_, __) => const Divider(height: 1),
       itemBuilder: (context, i) {
-        final art = _articles[i];
+        final art = articles[i];
         return Container(
           // Marge horizontale : décolle le filet du bord de l'écran.
           margin: const EdgeInsets.symmetric(horizontal: 8),
@@ -469,7 +466,7 @@ class _PageArticlesState extends State<PageArticles> {
   }
 
   // MÉTHODE = une fonction DANS la classe
-  Widget _vueGrille(double largeur) {
+  Widget _vueGrille(double largeur, List<Article> articles) {
     debugPrint(" DK -- _vueGrille Gestion de stock");
     // Une colonne par tranche d'environ 300px (minimum 2, maximum 5).
     final nbColonnes = (largeur / 300).floor().clamp(2, 5);
@@ -490,9 +487,9 @@ class _PageArticlesState extends State<PageArticles> {
           //   NB : les deux sont EXCLUSIFS (si on met les deux, mainAxisExtent gagne).
           mainAxisExtent: 150,
         ),
-        itemCount: _articles.length,
+        itemCount: articles.length,
         itemBuilder: (context, i) {
-          final art = _articles[i];
+          final art = articles[i];
           // Design "signal" : normal SOBRE (gris), alerte qui CLAQUE (orange).
           final enTeteFond =
               art.enAlerte ? Colors.orange : Colors.grey.shade200;

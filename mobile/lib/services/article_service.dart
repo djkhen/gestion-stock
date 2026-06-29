@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
 
 import '../main.dart' show apiBaseUrl;
@@ -18,7 +19,7 @@ class ArticleService {
 
   /// GET /articles (avec ?q= si une recherche est fournie).
   /// Renvoie la liste des articles, ou lève une exception en cas d'échec.
-  Future<List<Article>> liste({String recherche = ''}) async {
+  Future<List<Article>> getArticles({String recherche = ''}) async {
     final uri = Uri.parse('$baseUrl/articles').replace(
       queryParameters:
           recherche.trim().isEmpty ? null : {'q': recherche.trim()},
