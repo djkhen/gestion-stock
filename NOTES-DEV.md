@@ -172,6 +172,20 @@ CORS_ORIGINS: http://localhost:8090,http://localhost:4200,http://localhost:5000,
 **Solution** : `C:\Users\dk\.android\advancedFeatures.ini` avec `Vulkan = off`,
 ou lancer avec `-gpu swiftshader_indirect`.
 
+### 6. docker-compose : `services.db.environment.ports must be a boolean...`
+**Cause** : **indentation YAML** ! `ports:` mis **SOUS** `environment:` (trop indenté) → Docker
+le prend pour une **variable d'environnement** « ports ». En YAML, **l'indentation = la hiérarchie**.
+```yaml
+    environment:
+      POSTGRES_DB: ...
+      ports:          # ❌ 6 espaces → ENFANT de environment
+    ports:            # ✅ 4 espaces → FRÈRE de environment (vraie config de ports)
+      - "5432:5432"
+```
+**Lire l'erreur** : le chemin `services.db.environment.ports` **pointe l'endroit** (ports était sous environment).
+**Valider** un compose avant de lancer : `docker compose config --quiet` (silencieux = OK).
+> 🧠 YAML : indentation par **espaces** (jamais de tabs) ; les « frères » ont le **même** niveau.
+
 ---
 
 ## 📡 API REST `/articles` (codes HTTP)
@@ -313,14 +327,28 @@ docker compose exec db psql -U gs -d gestionstockdb -c "SELECT * FROM article;"
 Le `-c "..."` exécute UNE requête et rend la main (check rapide).
 
 ### Outil graphique (DBeaver / IntelliJ Database / pgAdmin)
-⚠️ Le conteneur `gs-db` **n'expose PAS** le port 5432 à l'hôte par défaut (interne au réseau Docker).
-Pour brancher un outil GUI, **mapper le port** dans `docker-compose.yml` :
+Un outil externe se connecte **depuis l'hôte** → il faut **exposer le port** de la base
+(par défaut elle est interne au réseau Docker). C'est **déjà configuré** dans le service `db` :
 ```yaml
 db:
   ports:
-    - "5432:5432"
+    - "5432:5432"     # hôte:conteneur
 ```
-puis se connecter à `localhost:5432`, base `gestionstockdb`, user/mdp `gs`/`gs`.
+Après ajout du `ports:`, recréer le conteneur (⚠️ **SANS `-v`** sinon la base est effacée) :
+```bash
+docker compose up -d
+```
+**Connexion** (DBeaver → New Connection → PostgreSQL) :
+```
+Host : localhost   Port : 5432   Database : gestionstockdb   User/Mdp : gs / gs
+```
+(DBeaver télécharge le driver PostgreSQL tout seul à la 1re connexion.)
+
+> 🧠 **Port HÔTE vs CONTENEUR** (`"hôte:conteneur"`) :
+> - **Conteneur** (droite, `5432`) = port **standard de PostgreSQL** → toujours 5432, identique pour TOUTE base (pas spécifique à gestionstockdb).
+> - **Hôte** (gauche) = **ton choix**, doit être **unique** sur la machine.
+> - **2 bases exposées en même temps** (gs + mp) → port hôte différent pour l'une (ex. mp `"5433:5432"`) sinon **conflit**. Dans l'outil → connecte-toi alors sur 5433.
+> - Si `localhost:5432` est déjà pris (Postgres installé en local, autre conteneur) → même solution : mappe sur un autre port hôte.
 
 > 🧠 `docker compose exec <service> <commande>` = exécuter une commande **dans** un conteneur qui tourne.
 > Pour la base : `psql -U <user> -d <base>`.

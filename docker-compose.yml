@@ -20,10 +20,16 @@ services:
       POSTGRES_DB: gestionstockdb
       POSTGRES_USER: gs
       POSTGRES_PASSWORD: gs
+    ports:
+      # Expose la base sur l'hôte → permet un outil GUI (DBeaver/IntelliJ) : localhost:5432.
+      # "hôte:conteneur" → le port HÔTE (gauche) doit être unique sur la machine ;
+      # le port CONTENEUR (droite, 5432) = port standard de PostgreSQL (toujours).
+      # 2 bases en parallèle ? → mappe l'autre sur un port hôte différent (ex. "5433:5432").
+      - "5433:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U gs -d gestionstockdb"]
+      test: [ "CMD-SHELL", "pg_isready -U gs -d gestionstockdb" ]
       interval: 5s
       timeout: 3s
       retries: 10
