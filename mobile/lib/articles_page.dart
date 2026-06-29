@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/widgets/historique_dialog.dart';
 
+import 'dashboard_page.dart';
 import 'models/article.dart';
 import 'models/mouvement.dart';
 import 'services/article_service.dart';
@@ -54,6 +55,7 @@ class _PageArticlesState extends State<PageArticles> {
 
   // Mode d'affichage choisi par l'utilisateur : false = liste, true = grille.
   bool _afficherEnGrille = false;
+  bool _filtreAlerte = false;
 
   @override
   void initState() {
@@ -72,11 +74,14 @@ class _PageArticlesState extends State<PageArticles> {
   /// GET /articles (avec ?q= si une recherche est saisie), puis met à jour l'UI.
   ///---------------------------------------------------------------------------
   Future<void> _chargerArticle() async {
+    // NB : le filtre "alerte" est CLIENT-SIDE (dans _construireCorps), pas ici.
+    // Ici, _recherche sert UNIQUEMENT à la recherche texte backend (?q=).
     // On réassigne le Future DANS un setState → le FutureBuilder se reconstruit.
     final futur = _service.getArticles(recherche: _recherche);
     // ⚠️ Corps en { } (et pas `=> _futureArticle = futur`) : avec la flèche,
     // la closure RENVOIE le résultat de l'affectation (un Future), et setState
     // l'interdit (« setState callback returned a Future »).
+
     setState(() {
       _futureArticle = futur;
     });
@@ -254,6 +259,25 @@ class _PageArticlesState extends State<PageArticles> {
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
           IconButton(
+            // Navigator.push : empile l'écran dashboard par-dessus (retour via la flèche).
+            onPressed: () async {
+              // ← async (car on await)
+              final res = await Navigator.push<String>(
+                // ← AWAIT → récupère le résultat du pop
+                context,
+                MaterialPageRoute(builder: (_) => const DashboardPage()),
+              );
+              if (!mounted) return; // ← ta Q8 ! (après un await)
+              if (res == 'alerte') {
+                // ← LÀ on lit ce que le dashboard a renvoyé
+                setState(() => _filtreAlerte = true); // applique le filtre
+                _chargerArticle;
+              }
+            },
+            tooltip: 'Tableau de bord',
+            icon: const Icon(Icons.dashboard_outlined),
+          ),
+          IconButton(
             onPressed: () =>
                 setState(() => _afficherEnGrille = !_afficherEnGrille),
             tooltip: _afficherEnGrille ? 'Vue liste' : 'Vue grille',
@@ -268,6 +292,29 @@ class _PageArticlesState extends State<PageArticles> {
       ),
       body: Column(
         children: [
+          // --- Bandeau "filtre alerte actif" : pleine largeur, dans le Column ---
+          // width: double.infinity → le Container prend toute la largeur (bornée par
+          // le Column) → le Row interne a une largeur finie → le Spacer fonctionne.
+          if (_filtreAlerte)
+            Container(
+              width: double.infinity,
+              color: Colors.orange.shade50,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded,
+                      color: Colors.orange, size: 18),
+                  const SizedBox(width: 8),
+                  const Text('Alerte uniquement'),
+                  const Spacer(),
+                  TextButton.icon(
+                    onPressed: () => setState(() => _filtreAlerte = false),
+                    icon: const Icon(Icons.close, size: 18),
+                    label: const Text('Tout afficher'),
+                  ),
+                ],
+              ),
+            ),
           // --- Barre de recherche (référence ou désignation) ---
           Padding(
             padding: const EdgeInsets.all(12),
@@ -341,14 +388,24 @@ class _PageArticlesState extends State<PageArticles> {
         }
 
         final articles = snapshot.data ?? [];
-        if (articles.isEmpty) {
-          return const Center(child: Text('Aucun article.'));
+        // Filtre CLIENT-SIDE : si _filtreAlerte actif, on ne garde que les "en alerte".
+        final visibles = _filtreAlerte
+            ? articles.where((a) => a.enAlerte).toList()
+            : articles;
+
+        if (visibles.isEmpty) {
+          return Center(
+            child: Text(_filtreAlerte
+                ? 'Aucun article en alerte. 🎉'
+                : 'Aucun article.'),
+          );
         }
-        // Cas DONNÉES : on renvoie la liste ou la grille selon le mode.
+
+        // Cas DONNÉES : on renvoie la liste ou la grille selon le mode (liste FILTRÉE).
         return LayoutBuilder(
           builder: (context, constraints) => _afficherEnGrille
-              ? _vueGrille(constraints.maxWidth, articles)
-              : _vueListe(articles),
+              ? _vueGrille(constraints.maxWidth, visibles)
+              : _vueListe(visibles),
         );
       },
     );
