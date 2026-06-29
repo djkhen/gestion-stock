@@ -53,6 +53,7 @@ class _PageArticlesState extends State<PageArticles> {
 
   String _recherche = '';
 
+  String _tri = 'aucun'; // valeurs : 'aucun', 'nom', 'prix_asc', 'prix_desc'
   // Mode d'affichage choisi par l'utilisateur : false = liste, true = grille.
   bool _afficherEnGrille = false;
   bool _filtreAlerte = false;
@@ -258,6 +259,19 @@ class _PageArticlesState extends State<PageArticles> {
         title: const Text('📦 Catalogue articles'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.sort),
+            tooltip: 'Trier',
+            onSelected: (valeur) => setState(() => _tri = valeur),
+            // change le tri + redessine
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: 'nom', child: Text('Nom (A → Z)')),
+              PopupMenuItem(value: 'prix_asc', child: Text('Prix croissant ↑')),
+              PopupMenuItem(
+                  value: 'prix_desc', child: Text('Prix décroissant ↓')),
+              PopupMenuItem(value: 'aucun', child: Text('Aucun tri')),
+            ],
+          ),
           IconButton(
             // Navigator.push : empile l'écran dashboard par-dessus (retour via la flèche).
             onPressed: () async {
@@ -389,9 +403,11 @@ class _PageArticlesState extends State<PageArticles> {
 
         final articles = snapshot.data ?? [];
         // Filtre CLIENT-SIDE : si _filtreAlerte actif, on ne garde que les "en alerte".
+        // [...articles] = COPIE : sort() modifie EN PLACE → on ne touche pas
+        // la liste du snapshot (sinon "Aucun tri" ne restaurerait plus l'ordre).
         final visibles = _filtreAlerte
             ? articles.where((a) => a.enAlerte).toList()
-            : articles;
+            : [...articles];
 
         if (visibles.isEmpty) {
           return Center(
@@ -400,7 +416,19 @@ class _PageArticlesState extends State<PageArticles> {
                 : 'Aucun article.'),
           );
         }
-
+        switch (_tri) {
+          case 'nom':
+            visibles.sort((a, b) => a.designation.compareTo(b.designation));
+            break;
+          case 'prix_asc':
+            visibles.sort((a, b) => a.prixUnitaire.compareTo(b.prixUnitaire));
+            break;
+          case 'prix_desc':
+            visibles.sort((a, b) =>
+                b.prixUnitaire.compareTo(a.prixUnitaire)); // ← a/b inversés
+            break;
+          // 'aucun' → on ne trie pas
+        }
         // Cas DONNÉES : on renvoie la liste ou la grille selon le mode (liste FILTRÉE).
         return LayoutBuilder(
           builder: (context, constraints) => _afficherEnGrille
