@@ -123,14 +123,19 @@ public class CommandeResource {
     @Path("/{id}/annuler")
     @Transactional
     public Commande annuler(@PathParam("id") long id) {
+        System.out.println("XX Début de la méthode annuler");
+
         Commande commande = Commande.findById(id);
         if (commande == null) {
             throw new WebApplicationException("Commande " + id + " introuvable", 404);
         }
-        if (commande.statut != StatutCommande.BROUILLON) {
+        System.out.println("XX commande.id = " + commande.id);
+        System.out.println("XX article = " + commande.statut);
+
+       if (commande.statut != StatutCommande.BROUILLON) {
             throw new WebApplicationException("Seule une commande BROUILLON peut être annulée", 409);
         }
-        commande.statut = StatutCommande.ANNULEE;
+        System.out.println("XX PASSE LE  throw  "  );
         return commande;
     }
 }

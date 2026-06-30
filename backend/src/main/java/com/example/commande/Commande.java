@@ -6,12 +6,14 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Column;
 
 /**
  * En-tête d'une commande (achat ou vente) + ses lignes.
  *
  * Première entité MAÎTRE-DÉTAIL du projet : une Commande possède plusieurs
- * LigneCommande via @OneToMany.
+ * LigneCommande via @OneToMany
  */
 @Entity
 @Table(name = "commande")
@@ -29,6 +31,8 @@ public class Commande extends PanacheEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     public StatutCommande statut = StatutCommande.BROUILLON;
+
+
 
     /** Nom du fournisseur (ACHAT) ou du client (VENTE). */
     public String tiers;
@@ -54,6 +58,8 @@ public class Commande extends PanacheEntity {
         if (dateCreation == null) {
             dateCreation = LocalDateTime.now();
         }
+
+
     }
 
     /**

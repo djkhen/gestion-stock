@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/widgets/historique_dialog.dart';
 
+import 'commandes_page.dart';
 import 'dashboard_page.dart';
 import 'models/article.dart';
 import 'models/mouvement.dart';
@@ -290,6 +291,14 @@ class _PageArticlesState extends State<PageArticles> {
             },
             tooltip: 'Tableau de bord',
             icon: const Icon(Icons.dashboard_outlined),
+          ),
+          IconButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const CommandesPage()),
+            ),
+            tooltip: 'Commandes',
+            icon: const Icon(Icons.receipt_long_outlined),
           ),
           IconButton(
             onPressed: () =>
