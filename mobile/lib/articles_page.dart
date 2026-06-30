@@ -643,7 +643,8 @@ class _PageArticlesState extends State<PageArticles> {
                           // Bas : unité à gauche, actions à droite (Spacer).
                           Row(
                             children: [
-                              Text("Stock ${art.quantiteStock} ${art.unite}",
+                              Text(
+                                  "${art.prixUnitaire.toStringAsFixed(2)} € Stock ${art.quantiteStock} ${art.unite}",
                                   style: const TextStyle(
                                       fontWeight: FontWeight.bold)),
                               const Spacer(),
