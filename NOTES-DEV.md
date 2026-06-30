@@ -355,6 +355,49 @@ Host : localhost   Port : 5432   Database : gestionstockdb   User/Mdp : gs / gs
 
 ---
 
+## 🧬 Enums, schéma & migrations (code-first)
+
+**Question posée** : les enums (ex. `SensCommande`, `StatutCommande`), vaut-il mieux les
+définir **en code** et **impacter la BD ensuite** ? → **Oui, et c'est DÉJÀ ce qu'on fait.**
+
+### Le code est la SOURCE DE VÉRITÉ
+- L'enum vit en **Java** (`@Enumerated(EnumType.STRING)` → stocké en clair, lisible).
+- `quarkus.hibernate-orm.database.generation=update` **génère/met à jour le schéma à partir des entités**.
+- **Bonus Hibernate 6** : il crée **tout seul une contrainte CHECK** en base à partir des valeurs de l'enum :
+```sql
+-- vérifiable via :  docker compose exec db psql -U gs -d gestionstockdb -c "\d commande"
+Check constraints:
+  commande_statut_check  CHECK (statut IN ('BROUILLON','VALIDEE','ANNULEE'))
+  commande_sens_check    CHECK (sens   IN ('ACHAT','VENTE'))
+```
+→ Résultat : **code = vérité**, ET **la BD applique la règle** (un `INSERT statut='BANANE'` en SQL direct est **rejeté** par PostgreSQL). L'enum n'est PAS « défini dans la base » : la base n'en est qu'un **reflet contraint**. Le mieux des deux mondes, **zéro travail en plus**.
+
+### ⚠️ Le piège de `generation=update`
+`update` est **pratique en dev mais limité** : si on **ajoute** plus tard une valeur d'enum
+(ex. `RECEPTIONNEE`), `update` **ne met pas toujours à jour la contrainte CHECK existante**
+→ l'ancienne contrainte traîne et **rejette la nouvelle valeur**. Symptôme : « ça marche en
+code, la BD refuse ». `update` ne sait pas non plus renommer une colonne, migrer des données,
+droper proprement → **dangereux en prod**.
+```
+update = bon pour prototyper │ JAMAIS pour une base de prod avec des données à préserver
+```
+
+### 🏭 La vraie réponse « pro » : migrations versionnées (Flyway / Liquibase)
+Le **code (enum Java) reste source de vérité**, mais le schéma SQL est piloté par des
+**scripts versionnés** qu'on écrit et qu'on relit en PR :
+```
+V1__create_commande.sql
+V2__add_statut_receptionnee.sql   -- ALTER TABLE ... DROP/ADD CONSTRAINT explicite
+```
+On passe alors de `generation=update` → `generation=none` + Flyway (historisé, rejouable, contrôlé).
+
+> 🧠 **À retenir :**
+> - **Maintenant (projet pédago)** : on garde `update` + enum Java + CHECK auto → **correct et élégant**, ne pas complexifier.
+> - **Pour la prod / le portfolio** : **Flyway** est le réflexe attendu dès qu'il y a des données à préserver.
+> - **Pour `gestion-flux`** (migration legacy PHP→Quarkus) : Flyway sera **quasi obligatoire** (on reprend un schéma existant, Hibernate ne doit rien « deviner »). C'est LE bon terrain pour l'apprendre.
+
+---
+
 ## 🗂️ Repères du projet
 
 | Élément | Valeur |

@@ -1,8 +1,9 @@
 package com.example.mouvement;
 
 import com.example.Article;
- 
+
 import io.quarkus.panache.common.Sort;
+import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
@@ -23,6 +24,9 @@ import java.util.List;
 
 
 public class MouvementResource {
+
+	@Inject
+	MouvementService service;   // logique stock centralisée
 
 	// GET /mouvements -> tous les mouvements.
 	// En JSON, chaque mouvement contient son produit IMBRIQUÉ (grâce à @ManyToOne).
@@ -53,43 +57,17 @@ public class MouvementResource {
 	@POST
 	@Transactional
 	public Response creer(@QueryParam("articleId") long articleId , Mouvement mouvement) {
-		// 1) Retrouver l'article concerné (le côté "one" articleIdde la relation).
+		// 1) Retrouver l'article concerné (le côté "one" de la relation).
 		Article article = Article.findById(articleId);
 		if (article == null) {
 			throw new WebApplicationException("L'article " + articleId + " introuvable", 404);
 		}
 
-		// 2) Lier le mouvement à l'article -> remplit la clé étrangère article_id.
-		mouvement.article = article;
+		// 2) Déléguer la règle métier au service (ajuste le stock + persiste).
+		Mouvement cree = service.appliquer(
+				article, mouvement.type, mouvement.quantite, mouvement.motif);
 
-		if (mouvement.type != TypeMouvement.AJUSTEMENT && mouvement.quantite <= 0) {
-			throw new WebApplicationException("La quantité doit être positive", 400);
-		}
-		switch (mouvement.type) {
-			case ENTREE     -> article.quantiteStock += mouvement.quantite;
-			case SORTIE     -> {
-				if (article.quantiteStock < mouvement.quantite) {
-					throw new WebApplicationException( "Stock insuffisant", 409); //409 Conflict
-					}
-					article.quantiteStock -= mouvement.quantite;
-				}
-
-			case AJUSTEMENT -> {
-						if( mouvement.quantite >=0 )
-							article.quantiteStock = mouvement.quantite;
-						else
-							throw new WebApplicationException( "Ajustement :  la quantité doit être positive ou nulle ", 409); //409 Conflict
-				}
-			case TRANSFERT  -> throw new WebApplicationException(
-					"Transfert : nécessite les emplacements (à venir)", 501 ) ; //501 = Not Implemented
-		}
-
-		// 3) Enregistrement .
-		mouvement.persist();
-
-		// 4) Réponse a la requette
-		return Response.status(Response.Status.CREATED).entity(mouvement).build();
-
-
+		// 3) Réponse à la requête.
+		return Response.status(Response.Status.CREATED).entity(cree).build();
 	}
 }
